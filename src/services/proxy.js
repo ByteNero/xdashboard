@@ -1,6 +1,4 @@
-// Proxy utility for bypassing CORS in development
-const isDev = import.meta.env.DEV;
-
+// Proxy utility for bypassing CORS via server proxy
 /**
  * Fetch with proxy support for CORS bypass in development
  * @param {string} url - The URL to fetch
@@ -8,13 +6,9 @@ const isDev = import.meta.env.DEV;
  * @returns {Promise<Response>}
  */
 export async function proxyFetch(url, options = {}) {
-  if (isDev) {
-    // Route through Vite proxy
-    const proxyUrl = `/api/proxy?url=${encodeURIComponent(url)}`;
-    return fetch(proxyUrl, options);
-  }
-  // In production, try direct fetch (requires CORS headers or same-origin)
-  return fetch(url, options);
+  // Always route through our server proxy to avoid CORS issues
+  const proxyUrl = `/api/proxy?url=${encodeURIComponent(url)}`;
+  return fetch(proxyUrl, options);
 }
 
 /**
@@ -25,10 +19,8 @@ export async function proxyFetch(url, options = {}) {
  */
 export function getProxiedUrl(url) {
   if (!url) return null;
-  if (isDev) {
-    return `/api/proxy?url=${encodeURIComponent(url)}`;
-  }
-  return url;
+  // Always proxy to avoid CORS issues
+  return `/api/proxy?url=${encodeURIComponent(url)}`;
 }
 
 export default { proxyFetch, getProxiedUrl };
