@@ -1,15 +1,284 @@
-import { useState, useEffect, useRef } from 'react';
-import { Camera, Loader2, Maximize2, Grid, RefreshCw } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Camera, Loader2, Maximize2, Grid, RefreshCw, X, Play, Pause, ChevronLeft, ChevronRight } from 'lucide-react';
 import { homeAssistant } from '../../services';
 import { useDashboardStore } from '../../store/dashboardStore';
 import PanelHeader from './PanelHeader';
 import { getLabel } from '../../utils/translations';
+
+const vibrate = (pattern = 20) => {
+  if (navigator.vibrate) navigator.vibrate(pattern);
+};
+
+// ========================
+// Fullscreen Camera Modal
+// ========================
+function CameraModal({ cameras, initialCameraId, haBaseUrl, scryptedConfig, integrations, onClose }) {
+  const [activeCamId, setActiveCamId] = useState(initialCameraId);
+  const [isLive, setIsLive] = useState(false);
+  const [liveKey, setLiveKey] = useState(0);
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const liveTimerRef = useRef(null);
+  const touchStartRef = useRef(null);
+
+  const activeIdx = cameras.findIndex(c => c.id === activeCamId);
+  const camera = cameras[activeIdx] || cameras[0];
+
+  // Live mode: rapid polling at 500ms
+  useEffect(() => {
+    if (!isLive) {
+      if (liveTimerRef.current) clearInterval(liveTimerRef.current);
+      return;
+    }
+    liveTimerRef.current = setInterval(() => {
+      setLiveKey(k => k + 1);
+    }, 500);
+    return () => { if (liveTimerRef.current) clearInterval(liveTimerRef.current); };
+  }, [isLive]);
+
+  // Reset live mode when switching cameras
+  useEffect(() => {
+    setImgLoaded(false);
+  }, [activeCamId]);
+
+  const goPrev = () => {
+    vibrate();
+    const newIdx = activeIdx > 0 ? activeIdx - 1 : cameras.length - 1;
+    setActiveCamId(cameras[newIdx].id);
+  };
+
+  const goNext = () => {
+    vibrate();
+    const newIdx = activeIdx < cameras.length - 1 ? activeIdx + 1 : 0;
+    setActiveCamId(cameras[newIdx].id);
+  };
+
+  // Swipe handling
+  const handleTouchStart = (e) => {
+    touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  };
+
+  const handleTouchEnd = (e) => {
+    if (!touchStartRef.current) return;
+    const dx = e.changedTouches[0].clientX - touchStartRef.current.x;
+    const dy = e.changedTouches[0].clientY - touchStartRef.current.y;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)) {
+      if (dx > 0) goPrev();
+      else goNext();
+    }
+    touchStartRef.current = null;
+  };
+
+  // Build the stream URL for modal (supports live fast-polling or MJPEG)
+  const getModalStreamUrl = () => {
+    const useMjpeg = isLive && camera.streamType !== 'hls';
+
+    // HA cameras
+    if (camera.source === 'ha') {
+      if (!haBaseUrl) return null;
+      if (useMjpeg && camera.entityId) {
+        const mjpegUrl = `${haBaseUrl}/api/camera_proxy_stream/${camera.entityId}`;
+        let proxyUrl = `/api/proxy?url=${encodeURIComponent(mjpegUrl)}`;
+        const haToken = integrations?.homeAssistant?.token;
+        if (haToken) proxyUrl += `&token=${encodeURIComponent(haToken)}`;
+        return proxyUrl;
+      }
+      if (!camera.entityPicture) return null;
+      const baseUrl = camera.entityPicture.startsWith('http')
+        ? camera.entityPicture
+        : `${haBaseUrl}${camera.entityPicture}`;
+      return `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}_=${liveKey}`;
+    }
+
+    // Scrypted cameras
+    if (camera.source === 'scrypted') {
+      let streamUrl;
+      if (camera.webhookUrl) {
+        streamUrl = camera.webhookUrl;
+        if (useMjpeg && !streamUrl.includes('/getVideoStream')) {
+          streamUrl = streamUrl.replace(/\/$/, '') + '/getVideoStream';
+        }
+        streamUrl = `/api/proxy?url=${encodeURIComponent(streamUrl)}`;
+      } else if (camera.scryptedId) {
+        const baseUrl = scryptedConfig?.url?.replace(/\/$/, '');
+        if (!baseUrl) return null;
+        const token = camera.token || scryptedConfig?.token;
+        const deviceId = camera.scryptedId;
+        if (useMjpeg) {
+          streamUrl = `${baseUrl}/endpoint/@scrypted/nvr/public/${deviceId}/channel/0/mjpeg`;
+        } else {
+          streamUrl = `${baseUrl}/endpoint/@scrypted/nvr/public/thumbnail/${deviceId}.jpg`;
+        }
+        let proxyUrl = `/api/proxy?url=${encodeURIComponent(streamUrl)}`;
+        if (token?.startsWith('cookie:')) proxyUrl += `&cookie=${encodeURIComponent(token.replace('cookie:', ''))}`;
+        else if (token) proxyUrl += `&token=${encodeURIComponent(token)}`;
+        if (!useMjpeg) proxyUrl += `&_=${liveKey}`;
+        return proxyUrl;
+      }
+      if (!useMjpeg && streamUrl) {
+        streamUrl += `${streamUrl.includes('?') ? '&' : '?'}_=${liveKey}`;
+      }
+      return streamUrl;
+    }
+
+    // Direct URL
+    if (!camera.url) return null;
+    let finalUrl = `/api/proxy?url=${encodeURIComponent(camera.url)}`;
+    if (!useMjpeg) finalUrl += `${finalUrl.includes('?') ? '&' : '?'}_=${liveKey}`;
+    return finalUrl;
+  };
+
+  const streamUrl = getModalStreamUrl();
+
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 99999,
+        background: 'rgba(0,0,0,0.95)',
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center'
+      }}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      onClick={(e) => { if (e.target === e.currentTarget) { vibrate(); onClose(); } }}
+    >
+      {/* Top bar */}
+      <div style={{
+        position: 'absolute', top: 0, left: 0, right: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '12px 16px', zIndex: 2
+      }}>
+        <div style={{ color: '#fff', fontSize: '14px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Camera size={16} />
+          {camera.name}
+          {isLive && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '10px', color: '#ff3333', fontWeight: '700' }}>
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ff3333', animation: 'pulse-danger 1.5s ease-in-out infinite' }} />
+              LIVE
+            </span>
+          )}
+        </div>
+        <button
+          onClick={() => { vibrate(); onClose(); }}
+          style={{
+            background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%',
+            width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', color: '#fff'
+          }}
+        >
+          <X size={18} />
+        </button>
+      </div>
+
+      {/* Camera image */}
+      <div style={{ position: 'relative', maxWidth: '95vw', maxHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {streamUrl ? (
+          <>
+            <img
+              src={streamUrl}
+              alt={camera.name}
+              onLoad={() => setImgLoaded(true)}
+              onError={() => {}}
+              style={{
+                maxWidth: '95vw', maxHeight: '80vh', objectFit: 'contain',
+                borderRadius: '12px', display: imgLoaded ? 'block' : 'none'
+              }}
+            />
+            {!imgLoaded && (
+              <div style={{ width: '300px', height: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Loader2 size={32} style={{ animation: 'spin 1s linear infinite', color: 'var(--accent-primary)' }} />
+              </div>
+            )}
+          </>
+        ) : (
+          <div style={{ color: 'var(--text-muted)', fontSize: '16px' }}>No stream available</div>
+        )}
+
+        {/* Nav arrows */}
+        {cameras.length > 1 && (
+          <>
+            <button
+              onClick={(e) => { e.stopPropagation(); goPrev(); }}
+              style={{
+                position: 'absolute', left: '-50px', top: '50%', transform: 'translateY(-50%)',
+                background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%',
+                width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', color: '#fff'
+              }}
+            >
+              <ChevronLeft size={20} />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); goNext(); }}
+              style={{
+                position: 'absolute', right: '-50px', top: '50%', transform: 'translateY(-50%)',
+                background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%',
+                width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', color: '#fff'
+              }}
+            >
+              <ChevronRight size={20} />
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* Bottom controls */}
+      <div style={{
+        position: 'absolute', bottom: '20px', left: 0, right: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px'
+      }}>
+        {/* Live toggle */}
+        <button
+          onClick={(e) => { e.stopPropagation(); vibrate(30); setIsLive(!isLive); }}
+          style={{
+            display: 'flex', alignItems: 'center', gap: '6px',
+            padding: '10px 20px',
+            background: isLive ? 'rgba(255,51,51,0.2)' : 'rgba(255,255,255,0.1)',
+            border: `1px solid ${isLive ? '#ff3333' : 'rgba(255,255,255,0.2)'}`,
+            borderRadius: '24px',
+            color: isLive ? '#ff3333' : '#fff',
+            fontSize: '13px', fontWeight: '600',
+            cursor: 'pointer'
+          }}
+        >
+          {isLive ? <><Pause size={14} /> Stop Live</> : <><Play size={14} /> Go Live</>}
+        </button>
+
+        {/* Camera dots */}
+        {cameras.length > 1 && (
+          <div style={{ display: 'flex', gap: '6px' }}>
+            {cameras.map((cam, i) => (
+              <button
+                key={cam.id}
+                onClick={(e) => { e.stopPropagation(); vibrate(); setActiveCamId(cam.id); }}
+                style={{
+                  width: i === activeIdx ? '20px' : '8px',
+                  height: '8px',
+                  borderRadius: '4px',
+                  background: i === activeIdx ? 'var(--accent-primary)' : 'rgba(255,255,255,0.3)',
+                  border: 'none',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  padding: 0
+                }}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes pulse-danger { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }`}</style>
+    </div>
+  );
+}
 
 export default function CameraPanel({ config }) {
   const [cameras, setCameras] = useState([]);
   const [selectedCamera, setSelectedCamera] = useState(null);
   const [viewMode, setViewMode] = useState(config?.defaultView || 'grid');
   const [refreshKey, setRefreshKey] = useState(0);
+  const [modalCameraId, setModalCameraId] = useState(null);
   const { integrations, connectionStatus, settings } = useDashboardStore();
   const language = settings?.language || 'en-GB';
   const t = (key) => getLabel(key, language);
@@ -216,14 +485,19 @@ export default function CameraPanel({ config }) {
               </div>
             )}
 
-            <CameraView
-              camera={currentCamera}
-              haBaseUrl={haBaseUrl}
-              scryptedConfig={scryptedConfig}
-              integrations={integrations}
-              refreshKey={refreshKey}
-              showOverlay={true}
-            />
+            <div
+              style={{ cursor: 'pointer' }}
+              onClick={() => { vibrate(); setModalCameraId(currentCamera.id); }}
+            >
+              <CameraView
+                camera={currentCamera}
+                haBaseUrl={haBaseUrl}
+                scryptedConfig={scryptedConfig}
+                integrations={integrations}
+                refreshKey={refreshKey}
+                showOverlay={true}
+              />
+            </div>
 
           </div>
         ) : (
@@ -236,10 +510,7 @@ export default function CameraPanel({ config }) {
               <div
                 key={cam.id}
                 style={{ cursor: 'pointer' }}
-                onClick={() => {
-                  setSelectedCamera(cam.id);
-                  setViewMode('single');
-                }}
+                onClick={() => { vibrate(); setModalCameraId(cam.id); }}
               >
                 <CameraView
                   camera={cam}
@@ -254,6 +525,18 @@ export default function CameraPanel({ config }) {
           </div>
         )}
       </div>
+
+      {/* Fullscreen camera modal */}
+      {modalCameraId && (
+        <CameraModal
+          cameras={cameras}
+          initialCameraId={modalCameraId}
+          haBaseUrl={haBaseUrl}
+          scryptedConfig={scryptedConfig}
+          integrations={integrations}
+          onClose={() => setModalCameraId(null)}
+        />
+      )}
     </div>
   );
 }
