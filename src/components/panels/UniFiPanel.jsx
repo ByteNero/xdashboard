@@ -478,16 +478,29 @@ export default function UniFiPanel({ config }) {
     setSpeedTestRunning(true);
     try {
       await unifi.runSpeedTest();
-      // Poll for results every 5s for up to 60s
+      // Poll for results every 5s for up to 90s
       let attempts = 0;
+      const initialResults = await unifi.getSpeedTestResults();
+      const initialTime = initialResults?.lastRun || 0;
+
       const poll = setInterval(async () => {
         attempts++;
-        const results = await unifi.getSpeedTestResults();
-        if (results?.download || attempts >= 12) {
-          clearInterval(poll);
-          setSpeedTestRunning(false);
-          // Refresh all data to get updated speed test results
-          unifi.fetchAll();
+        try {
+          const results = await unifi.getSpeedTestResults();
+          // Check if we got NEW results (different timestamp) or any results at all
+          const hasNewResults = results?.download && results.lastRun !== initialTime;
+          if (hasNewResults || attempts >= 18) {
+            clearInterval(poll);
+            setSpeedTestRunning(false);
+            unifi.fetchAll();
+          }
+        } catch {
+          // Keep polling even on errors
+          if (attempts >= 18) {
+            clearInterval(poll);
+            setSpeedTestRunning(false);
+            unifi.fetchAll();
+          }
         }
       }, 5000);
     } catch (err) {

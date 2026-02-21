@@ -198,21 +198,52 @@ class UniFiService {
     return { started: true };
   }
 
+  async getSpeedTestStatus() {
+    if (!this.connected) return null;
+    try {
+      const data = await this._post(`api/s/${this.site}/cmd/devmgr`, { cmd: 'speedtest-status' });
+      return data;
+    } catch (err) {
+      console.error('[UniFi] getSpeedTestStatus error:', err);
+      return null;
+    }
+  }
+
   async getSpeedTestResults() {
     if (!this.connected) return null;
     try {
+      // Try the dedicated speed test archive endpoint first
+      const now = Date.now();
+      const dayAgo = now - 86400000;
+      const data = await this._fetch(`api/s/${this.site}/stat/report/archive.speedtest?start=${dayAgo}&end=${now}`);
+      if (data && data.length > 0) {
+        // Get most recent result
+        const latest = data.sort((a, b) => (b.time || 0) - (a.time || 0))[0];
+        return {
+          download: latest.xput_download,
+          upload: latest.xput_upload,
+          ping: latest.latency,
+          lastRun: latest.time
+        };
+      }
+    } catch (err) {
+      console.log('[UniFi] archive.speedtest not available, trying health endpoint');
+    }
+
+    // Fallback: check health endpoint fields
+    try {
       const data = await this._fetch(`api/s/${this.site}/stat/health`);
       const wan = (data || []).find(s => s.subsystem === 'wan');
-      if (wan) {
+      if (wan && (wan.xput_down || wan.xput_download)) {
         return {
-          download: wan.xput_down,
-          upload: wan.xput_up,
-          ping: wan.speedtest_ping,
+          download: wan.xput_download || wan.xput_down,
+          upload: wan.xput_upload || wan.xput_up,
+          ping: wan.latency || wan.speedtest_ping,
           lastRun: wan.speedtest_lastrun
         };
       }
     } catch (err) {
-      console.error('[UniFi] getSpeedTestResults error:', err);
+      console.error('[UniFi] getSpeedTestResults fallback error:', err);
     }
     return null;
   }
@@ -305,9 +336,9 @@ class UniFiService {
             txRate: sub['tx_bytes-r'] || 0,
             rxRate: sub['rx_bytes-r'] || 0,
             latency: sub.latency,
-            speedtestPing: sub.speedtest_ping,
-            speedtestDown: sub.xput_down,
-            speedtestUp: sub.xput_up,
+            speedtestPing: sub.speedtest_ping || sub.latency,
+            speedtestDown: sub.xput_download || sub.xput_down,
+            speedtestUp: sub.xput_upload || sub.xput_up,
             numSta: sub.num_sta || 0
           };
         } else if (sub.subsystem === 'wlan') {
