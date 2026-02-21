@@ -885,12 +885,38 @@ const loadFromServer = async () => {
 const applyServerData = (serverData) => {
   isSyncing = true;
   const localPanelHeight = useDashboardStore.getState().settings?.panelHeight || 'auto';
+
+  // Merge in any new default panels missing from server data
+  const serverPanelIds = (serverData.panels || []).map(p => p.id);
+  const missingPanels = defaultPanels.filter(p => !serverPanelIds.includes(p.id));
+  const mergedPanels = [...(serverData.panels || []), ...missingPanels];
+
+  // Merge in any new default integrations missing from server data
+  const mergedIntegrations = { ...defaultIntegrations };
+  const persisted = serverData.integrations || {};
+  for (const key of Object.keys(mergedIntegrations)) {
+    if (key in persisted) {
+      if (Array.isArray(mergedIntegrations[key])) {
+        mergedIntegrations[key] = persisted[key];
+      } else if (typeof mergedIntegrations[key] === 'object' && mergedIntegrations[key] !== null) {
+        mergedIntegrations[key] = { ...mergedIntegrations[key], ...persisted[key] };
+      } else {
+        mergedIntegrations[key] = persisted[key];
+      }
+    }
+  }
+  for (const key of Object.keys(persisted)) {
+    if (!(key in mergedIntegrations)) {
+      mergedIntegrations[key] = persisted[key];
+    }
+  }
+
   useDashboardStore.setState({
-    panels: serverData.panels,
-    integrations: serverData.integrations,
+    panels: mergedPanels,
+    integrations: mergedIntegrations,
     settings: { ...serverData.settings, panelHeight: localPanelHeight }
   });
-  lastServerHash = hashState(serverData);
+  lastServerHash = hashState({ panels: mergedPanels, integrations: mergedIntegrations, settings: serverData.settings });
   isSyncing = false;
 };
 
