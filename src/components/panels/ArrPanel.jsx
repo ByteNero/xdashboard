@@ -72,7 +72,66 @@ const StatusBadge = ({ status }) => {
   );
 };
 
-// Media card component
+// Poster grid card for recently added
+const PosterGridCard = ({ item, type }) => {
+  const poster = item.posterUrl || item.remotePoster || item.images?.find(i => i.coverType === 'poster')?.remoteUrl;
+
+  return (
+    <div style={{
+      position: 'relative',
+      borderRadius: '6px',
+      overflow: 'hidden',
+      background: 'var(--bg-card)',
+      aspectRatio: '2/3'
+    }}>
+      {poster ? (
+        <img
+          src={poster}
+          alt=""
+          loading="lazy"
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          onError={(e) => { e.target.style.display = 'none'; }}
+        />
+      ) : (
+        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {type === 'movie' ? <Film size={24} style={{ color: 'var(--text-muted)', opacity: 0.3 }} /> : <Tv size={24} style={{ color: 'var(--text-muted)', opacity: 0.3 }} />}
+        </div>
+      )}
+      {/* Gradient overlay */}
+      <div style={{
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        padding: '6px',
+        background: 'linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.5) 60%, transparent 100%)',
+        paddingTop: '24px'
+      }}>
+        <div style={{
+          fontSize: '10px',
+          fontWeight: '600',
+          color: '#fff',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          marginBottom: '2px'
+        }}>
+          {item.title || item.name}
+        </div>
+        {item.subtitle && (
+          <div style={{ fontSize: '8px', color: 'rgba(255,255,255,0.7)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: '2px' }}>
+            {item.subtitle}
+          </div>
+        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          {item.status && <StatusBadge status={item.status} />}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// List card for missing/requests
 const MediaCard = ({ item, type }) => {
   const poster = item.posterUrl || item.remotePoster || item.images?.find(i => i.coverType === 'poster')?.remoteUrl;
 
@@ -323,7 +382,7 @@ export default function ArrPanel({ config }) {
         const recentMovies = movies
           .filter(m => new Date(m.added) >= cutoff48h)
           .sort((a, b) => new Date(b.added) - new Date(a.added))
-          .slice(0, 8)
+          .slice(0, 12)
           .map(m => ({
             id: m.id,
             title: m.title,
@@ -342,7 +401,7 @@ export default function ArrPanel({ config }) {
             const dateB = new Date(b.added || '1970');
             return dateB - dateA; // Most recently added first
           })
-          .slice(0, 8)
+          .slice(0, 12)
           .map(m => ({
             id: m.id,
             title: m.title,
@@ -384,7 +443,7 @@ export default function ArrPanel({ config }) {
             seenEpisodeIds.add(key);
             return true;
           })
-          .slice(0, 8)
+          .slice(0, 12)
           .map(h => {
             const seriesInfo = h.series || seriesMap[h.seriesId];
             const ep = h.episode || {};
@@ -404,7 +463,7 @@ export default function ArrPanel({ config }) {
 
         // Missing = episodes that are wanted but not downloaded
         const missingEpisodes = (wanted.records || [])
-          .slice(0, 8)
+          .slice(0, 12)
           .map(ep => {
             const seriesInfo = ep.series || seriesMap[ep.seriesId];
             const seasonNum = String(ep.seasonNumber || 0).padStart(2, '0');
@@ -605,17 +664,32 @@ export default function ArrPanel({ config }) {
         )}
 
         {/* Content */}
-        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div style={{ flex: 1, overflowY: 'auto' }}>
           {currentError && (
-            <div style={{ padding: '12px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--danger)', borderRadius: '6px', fontSize: '11px', color: 'var(--danger)' }}>
+            <div style={{ padding: '12px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--danger)', borderRadius: '6px', fontSize: '11px', color: 'var(--danger)', marginBottom: '8px' }}>
               Error: {currentError}
             </div>
           )}
 
           {currentData.length > 0 ? (
-            currentData.map((item, i) => (
-              <MediaCard key={item.id || i} item={item} type={item.type} />
-            ))
+            // Use poster grid for "recent" / "available" tabs, list for others
+            (subTab[currentTab?.id] === 'recent' || subTab[currentTab?.id] === 'available') ? (
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, 1fr)',
+                gap: '6px'
+              }}>
+                {currentData.map((item, i) => (
+                  <PosterGridCard key={item.id || i} item={item} type={item.type} />
+                ))}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {currentData.map((item, i) => (
+                  <MediaCard key={item.id || i} item={item} type={item.type} />
+                ))}
+              </div>
+            )
           ) : !currentLoading && !currentError ? (
             <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)', fontSize: '12px' }}>
               {t('noItemsToDisplay')}

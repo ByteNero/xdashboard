@@ -888,18 +888,23 @@ export default function PosterPanel({ config }) {
     }, 800);
   }, [transitioning, items.length, currentIndex]);
 
-  // Auto-rotate
+  // Auto-rotate — loops back to 0 and re-fetches periodically
   useEffect(() => {
     if (items.length <= 1) return;
 
     const interval = posterConfig.rotateInterval || 15000;
     const timer = setInterval(() => {
       const newIndex = (currentIndex + 1) % items.length;
+      // When looping back to start, refresh content
+      if (newIndex === 0) {
+        lastRefreshRef.current = Date.now();
+        fetchContent();
+      }
       transitionTo(newIndex);
     }, interval);
 
     return () => clearInterval(timer);
-  }, [items.length, posterConfig.rotateInterval, currentIndex, transitionTo]);
+  }, [items.length, posterConfig.rotateInterval, currentIndex, transitionTo, fetchContent]);
 
   // Periodic content refresh (every 30 minutes)
   useEffect(() => {
