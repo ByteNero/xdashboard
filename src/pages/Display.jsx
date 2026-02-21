@@ -16,7 +16,8 @@ import {
   DockerPanel,
   RSSPanel,
   PosterPanel,
-  MarketsPanel
+  MarketsPanel,
+  UniFiPanel
 } from '../components/panels';
 import { Loader2 } from 'lucide-react';
 
@@ -36,7 +37,8 @@ const panelComponents = {
   'docker': DockerPanel,
   'rss': RSSPanel,
   'poster': PosterPanel,
-  'markets': MarketsPanel
+  'markets': MarketsPanel,
+  'unifi': UniFiPanel
 };
 
 export default function Display() {
@@ -54,7 +56,8 @@ export default function Display() {
       weather: { apiKey: ints.weather?.apiKey, units: ints.weather?.units },
       weatherLocations: (ints.weatherLocations || []).map(l => ({ id: l.id, enabled: l.enabled, city: l.city })),
       clocks: (ints.clocks || []).map(c => ({ id: c.id, enabled: c.enabled, city: c.city })),
-      tautulli: { enabled: ints.tautulli?.enabled, url: ints.tautulli?.url }
+      tautulli: { enabled: ints.tautulli?.enabled, url: ints.tautulli?.url },
+      unifi: { enabled: ints.unifi?.enabled, url: ints.unifi?.url }
     });
   };
 

@@ -5,7 +5,7 @@ import {
   ExternalLink, RotateCcw, Check, X, Loader2, ChevronDown, ChevronUp,
   Eye, EyeOff, Info, Plus, Trash2, Search, Calendar, Camera, StickyNote, Cpu,
   Lightbulb, Bed, ChefHat, Lock, Thermometer, Tv, DoorOpen, Fan, Power, Film, Book, Bell,
-  Download, Upload, Link as LinkIcon, Box, Rss, Image, Star, TrendingUp, Timer
+  Download, Upload, Link as LinkIcon, Box, Rss, Image, Star, TrendingUp, Timer, Wifi
 } from 'lucide-react';
 import { useDashboardStore } from '../store/dashboardStore';
 import { homeAssistant } from '../services';
@@ -156,7 +156,8 @@ const panelIcons = {
   'docker': Box,
   'rss': Rss,
   'poster': Image,
-  'markets': TrendingUp
+  'markets': TrendingUp,
+  'unifi': Wifi
 };
 
 const availableIcons = [
@@ -1767,8 +1768,8 @@ export default function Setup() {
     _hasHydrated,
     panels, togglePanel, reorderPanels, updatePanelConfig,
     integrations, updateIntegration, connectionStatus,
-    connectHomeAssistant, connectUptimeKuma, connectWeather, connectTautulli,
-    disconnectHomeAssistant, disconnectUptimeKuma, disconnectWeather, disconnectTautulli,
+    connectHomeAssistant, connectUptimeKuma, connectWeather, connectTautulli, connectUnifi,
+    disconnectHomeAssistant, disconnectUptimeKuma, disconnectWeather, disconnectTautulli, disconnectUnifi,
     testTmdbConnection, testTraktConnection, resetPosterConnection,
     settings, updateSettings, resetToDefaults
   } = useDashboardStore();
@@ -1795,6 +1796,9 @@ export default function Setup() {
       }
       if (integrations.tautulli.enabled && integrations.tautulli.url && integrations.tautulli.apiKey) {
         connectTautulli();
+      }
+      if (integrations.unifi?.enabled && integrations.unifi?.url) {
+        connectUnifi();
       }
     };
     autoConnect();
@@ -2714,6 +2718,84 @@ export default function Setup() {
                   <option value={300000}>5 minutes</option>
                 </select>
               </div>
+
+            </IntegrationCard>
+
+            <IntegrationCard title="UniFi Network" icon={Wifi} enabled={integrations.unifi?.enabled}
+              onToggle={() => updateIntegration('unifi', { ...integrations.unifi, enabled: !integrations.unifi?.enabled })}
+              status={connectionStatus.unifi} onConnect={connectUnifi} onDisconnect={disconnectUnifi} language={language}>
+
+              <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '12px', marginBottom: '16px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                Monitor connected clients, network devices (APs, switches, gateways), and WAN health from your UniFi controller.
+              </div>
+
+              {/* Controller Type */}
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', marginBottom: '6px', color: 'var(--text-secondary)' }}>Controller Type</label>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  {[{ value: 'udm', label: 'UDM / UniFi OS' }, { value: 'self-hosted', label: 'Self-hosted Controller' }].map(opt => (
+                    <label key={opt.value} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', color: 'var(--text-primary)' }}>
+                      <input type="radio" name="unifiType" checked={(integrations.unifi?.controllerType || 'udm') === opt.value}
+                        onChange={() => updateIntegration('unifi', { ...integrations.unifi, controllerType: opt.value })} style={{ accentColor: 'var(--accent-primary)' }} />
+                      {opt.label}
+                    </label>
+                  ))}
+                </div>
+                <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
+                  {(integrations.unifi?.controllerType || 'udm') === 'udm'
+                    ? 'UDM, UDM Pro, UDM SE, Dream Router, Cloud Gateway, Cloud Key Gen2+'
+                    : 'Standalone Network Application (Java-based controller)'}
+                </p>
+              </div>
+
+              {/* Controller URL */}
+              <FormInput label="Controller URL" value={integrations.unifi?.url || ''}
+                onChange={(url) => updateIntegration('unifi', { ...integrations.unifi, url })}
+                placeholder={(integrations.unifi?.controllerType || 'udm') === 'self-hosted'
+                  ? 'https://192.168.1.x:8443' : 'https://192.168.1.1'}
+                helpText={(integrations.unifi?.controllerType || 'udm') === 'self-hosted'
+                  ? 'Self-hosted controller URL (typically port 8443)'
+                  : 'UDM/Dream Machine IP (typically https with port 443)'} />
+
+              {/* Auth Method */}
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', marginBottom: '6px', color: 'var(--text-secondary)' }}>Authentication</label>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  {[{ value: 'credentials', label: 'Username & Password' }, { value: 'apikey', label: 'API Key' }].map(opt => (
+                    <label key={opt.value} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', color: 'var(--text-primary)' }}>
+                      <input type="radio" name="unifiAuth" checked={(integrations.unifi?.authMethod || 'credentials') === opt.value}
+                        onChange={() => updateIntegration('unifi', { ...integrations.unifi, authMethod: opt.value })} style={{ accentColor: 'var(--accent-primary)' }} />
+                      {opt.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Conditional: Credentials or API Key */}
+              {(integrations.unifi?.authMethod || 'credentials') === 'apikey' ? (
+                <>
+                  <FormInput label="API Key" value={integrations.unifi?.apiKey || ''}
+                    onChange={(apiKey) => updateIntegration('unifi', { ...integrations.unifi, apiKey })}
+                    placeholder="Your UniFi API key" secret
+                    helpText="Settings → System → Advanced → API → Create API Key" />
+                </>
+              ) : (
+                <>
+                  <FormInput label="Username" value={integrations.unifi?.username || ''}
+                    onChange={(username) => updateIntegration('unifi', { ...integrations.unifi, username })}
+                    placeholder="Local admin username"
+                    helpText="Use a local account (not UI.com cloud account) to avoid MFA issues" />
+                  <FormInput label="Password" value={integrations.unifi?.password || ''}
+                    onChange={(password) => updateIntegration('unifi', { ...integrations.unifi, password })}
+                    placeholder="Password" secret />
+                </>
+              )}
+
+              {/* Site Name */}
+              <FormInput label="Site Name" value={integrations.unifi?.site || 'default'}
+                onChange={(site) => updateIntegration('unifi', { ...integrations.unifi, site })}
+                placeholder="default"
+                helpText="UniFi site name — most installations use 'default'" />
 
             </IntegrationCard>
           </div>

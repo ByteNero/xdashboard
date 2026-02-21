@@ -1,9 +1,10 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { homeAssistant, uptimeKuma, weather, tautulli } from '../services';
+import { unifi } from '../services/unifi';
 
 // Increment this when making breaking changes to force cache reset
-const STORE_VERSION = 4;
+const STORE_VERSION = 5;
 
 const defaultPanels = [
   {
@@ -150,6 +151,14 @@ const defaultPanels = [
     enabled: false,
     order: 15,
     config: {}
+  },
+  {
+    id: 'unifi',
+    type: 'unifi',
+    title: 'Network',
+    enabled: false,
+    order: 16,
+    config: {}
   }
 ];
 
@@ -251,6 +260,16 @@ const defaultIntegrations = {
     alphaVantageKey: '', // Optional: for stocks/ETFs
     finnhubKey: '', // Optional: alternative stock data
     refreshInterval: 60000 // 1 minute
+  },
+  unifi: {
+    enabled: false,
+    url: '',
+    controllerType: 'udm', // 'self-hosted' or 'udm'
+    authMethod: 'credentials', // 'credentials' or 'apikey'
+    username: '',
+    password: '',
+    apiKey: '',
+    site: 'default'
   }
 };
 
@@ -275,7 +294,8 @@ export const useDashboardStore = create(
         weather: { connected: false, error: null },
         tautulli: { connected: false, error: null },
         poster: { tmdb: { connected: false, error: null }, trakt: { connected: false, error: null } },
-        calendars: { configured: false, connected: false, testedCount: 0, totalCount: 0, totalEvents: 0 }
+        calendars: { configured: false, connected: false, testedCount: 0, totalCount: 0, totalEvents: 0 },
+        unifi: { connected: false, error: null }
       },
       
       // Panel management
@@ -549,6 +569,42 @@ export const useDashboardStore = create(
         get().setConnectionStatus('tautulli', { connected: false, error: null });
       },
 
+      connectUnifi: async () => {
+        const { integrations, setConnectionStatus } = get();
+        const config = integrations.unifi;
+
+        if (!config.url) {
+          setConnectionStatus('unifi', { connected: false, error: 'Controller URL is required' });
+          return false;
+        }
+
+        const needsCredentials = config.authMethod !== 'apikey' && (!config.username || !config.password);
+        const needsApiKey = config.authMethod === 'apikey' && !config.apiKey;
+
+        if (needsCredentials || needsApiKey) {
+          setConnectionStatus('unifi', { connected: false, error: 'Authentication details required' });
+          return false;
+        }
+
+        try {
+          setConnectionStatus('unifi', { connected: false, error: null, connecting: true });
+          console.log('[Store] Attempting UniFi connection to:', config.url);
+          await unifi.connect(config);
+          console.log('[Store] UniFi connected successfully');
+          setConnectionStatus('unifi', { connected: true, connecting: false, error: null });
+          return true;
+        } catch (error) {
+          console.error('[Store] UniFi connection failed:', error);
+          setConnectionStatus('unifi', { connected: false, connecting: false, error: error.message });
+          return false;
+        }
+      },
+
+      disconnectUnifi: () => {
+        unifi.disconnect();
+        get().setConnectionStatus('unifi', { connected: false, error: null });
+      },
+
       // Test TMDB API connection
       testTmdbConnection: async () => {
         const { integrations, setConnectionStatus, connectionStatus } = get();
@@ -651,7 +707,7 @@ export const useDashboardStore = create(
 
       // Connect all enabled integrations
       connectAllEnabled: async () => {
-        const { integrations, connectHomeAssistant, connectUptimeKuma, connectWeather, connectTautulli } = get();
+        const { integrations, connectHomeAssistant, connectUptimeKuma, connectWeather, connectTautulli, connectUnifi } = get();
 
         const promises = [];
 
@@ -671,6 +727,10 @@ export const useDashboardStore = create(
 
         if (integrations.tautulli.enabled && integrations.tautulli.url && integrations.tautulli.apiKey) {
           promises.push(connectTautulli());
+        }
+
+        if (integrations.unifi?.enabled && integrations.unifi?.url) {
+          promises.push(connectUnifi());
         }
 
         if (promises.length > 0) {
