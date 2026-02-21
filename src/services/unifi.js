@@ -151,6 +151,72 @@ class UniFiService {
     }
   }
 
+  async _post(path, body = {}) {
+    const url = this._apiUrl(path);
+    let proxyUrl = `/api/proxy?url=${encodeURIComponent(url)}`;
+
+    if (this.authMethod === 'apikey') {
+      const headers = JSON.stringify({ 'X-API-KEY': this.apiKey });
+      proxyUrl += `&headers=${encodeURIComponent(headers)}`;
+    } else if (this.sessionCookie) {
+      proxyUrl += `&cookie=${encodeURIComponent(this.sessionCookie)}`;
+    }
+
+    const response = await fetch(proxyUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+      if (response.status === 401 && this.authMethod === 'credentials' && !this._retrying) {
+        this._retrying = true;
+        try {
+          await this._login();
+          const result = await this._post(path, body);
+          this._retrying = false;
+          return result;
+        } catch (e) {
+          this._retrying = false;
+          throw e;
+        }
+      }
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    if (data.meta?.rc === 'error') {
+      throw new Error(`UniFi API error: ${data.meta?.msg || 'unknown'}`);
+    }
+    return data.data || data;
+  }
+
+  async runSpeedTest() {
+    if (!this.connected) throw new Error('Not connected');
+    console.log('[UniFi] Triggering speed test...');
+    await this._post(`api/s/${this.site}/cmd/devmgr`, { cmd: 'speedtest' });
+    return { started: true };
+  }
+
+  async getSpeedTestResults() {
+    if (!this.connected) return null;
+    try {
+      const data = await this._fetch(`api/s/${this.site}/stat/health`);
+      const wan = (data || []).find(s => s.subsystem === 'wan');
+      if (wan) {
+        return {
+          download: wan.xput_down,
+          upload: wan.xput_up,
+          ping: wan.speedtest_ping,
+          lastRun: wan.speedtest_lastrun
+        };
+      }
+    } catch (err) {
+      console.error('[UniFi] getSpeedTestResults error:', err);
+    }
+    return null;
+  }
+
   async fetchAll() {
     try {
       await Promise.all([

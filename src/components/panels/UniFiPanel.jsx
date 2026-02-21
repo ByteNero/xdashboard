@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Wifi, Globe, Server, Loader2, Monitor, Smartphone, Cable, Radio, Router, Users, ArrowDown, ArrowUp, Cpu, HardDrive, Signal } from 'lucide-react';
+import { Wifi, Globe, Server, Loader2, Monitor, Smartphone, Cable, Radio, Router, Users, ArrowDown, ArrowUp, Cpu, HardDrive, Signal, Zap } from 'lucide-react';
 import { unifi } from '../../services';
 import { useDashboardStore } from '../../store/dashboardStore';
 import PanelHeader from './PanelHeader';
@@ -183,7 +183,7 @@ const DeviceCard = ({ device }) => {
 // ========================
 // WAN Overview Component
 // ========================
-const WanOverview = ({ health }) => {
+const WanOverview = ({ health, onSpeedTest, speedTestRunning }) => {
   const wan = health?.wan;
   const wlan = health?.wlan;
   const lan = health?.lan;
@@ -267,32 +267,62 @@ const WanOverview = ({ health }) => {
         </div>
       </div>
 
-      {/* Speed Test Results (if available) */}
-      {(wan.speedtestDown || wan.speedtestUp) && (
-        <div style={{ background: 'var(--bg-card)', borderRadius: '8px', padding: '10px' }}>
-          <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '6px', fontWeight: '600' }}>Last Speed Test</div>
+      {/* Speed Test */}
+      <div style={{ background: 'var(--bg-card)', borderRadius: '8px', padding: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: (wan.speedtestDown || wan.speedtestUp) ? '8px' : '0' }}>
+          <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: '600' }}>Speed Test</div>
+          <button
+            onClick={() => { vibrate(30); onSpeedTest?.(); }}
+            disabled={speedTestRunning}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '4px',
+              padding: '4px 10px',
+              background: speedTestRunning ? 'var(--bg-secondary)' : 'var(--accent-glow)',
+              border: `1px solid ${speedTestRunning ? 'var(--border-color)' : 'var(--accent-primary)'}`,
+              borderRadius: '4px',
+              color: speedTestRunning ? 'var(--text-muted)' : 'var(--accent-primary)',
+              fontSize: '10px', fontWeight: '600',
+              cursor: speedTestRunning ? 'not-allowed' : 'pointer',
+              fontFamily: 'inherit'
+            }}
+          >
+            {speedTestRunning ? (
+              <><Loader2 size={10} style={{ animation: 'spin 1s linear infinite' }} /> Running...</>
+            ) : (
+              <><Zap size={10} /> Run Test</>
+            )}
+          </button>
+        </div>
+        {(wan.speedtestDown || wan.speedtestUp) ? (
           <div style={{ display: 'flex', justifyContent: 'space-around', fontSize: '11px' }}>
-            {wan.speedtestDown && (
+            {wan.speedtestDown != null && (
               <div style={{ textAlign: 'center' }}>
-                <div style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{wan.speedtestDown.toFixed(1)} Mbps</div>
-                <div style={{ fontSize: '9px', color: 'var(--text-muted)' }}>Down</div>
+                <ArrowDown size={10} style={{ color: '#22c55e', marginBottom: '2px' }} />
+                <div style={{ fontWeight: '700', color: '#22c55e', fontSize: '13px' }}>{wan.speedtestDown.toFixed(1)}</div>
+                <div style={{ fontSize: '9px', color: 'var(--text-muted)' }}>Mbps Down</div>
               </div>
             )}
-            {wan.speedtestUp && (
+            {wan.speedtestUp != null && (
               <div style={{ textAlign: 'center' }}>
-                <div style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{wan.speedtestUp.toFixed(1)} Mbps</div>
-                <div style={{ fontSize: '9px', color: 'var(--text-muted)' }}>Up</div>
+                <ArrowUp size={10} style={{ color: '#3b82f6', marginBottom: '2px' }} />
+                <div style={{ fontWeight: '700', color: '#3b82f6', fontSize: '13px' }}>{wan.speedtestUp.toFixed(1)}</div>
+                <div style={{ fontSize: '9px', color: 'var(--text-muted)' }}>Mbps Up</div>
               </div>
             )}
-            {wan.speedtestPing && (
+            {wan.speedtestPing != null && (
               <div style={{ textAlign: 'center' }}>
-                <div style={{ fontWeight: '600', color: 'var(--text-primary)' }}>{wan.speedtestPing} ms</div>
-                <div style={{ fontSize: '9px', color: 'var(--text-muted)' }}>Ping</div>
+                <Signal size={10} style={{ color: 'var(--accent-primary)', marginBottom: '2px' }} />
+                <div style={{ fontWeight: '700', color: 'var(--text-primary)', fontSize: '13px' }}>{wan.speedtestPing}</div>
+                <div style={{ fontSize: '9px', color: 'var(--text-muted)' }}>ms Ping</div>
               </div>
             )}
           </div>
-        </div>
-      )}
+        ) : !speedTestRunning ? (
+          <div style={{ textAlign: 'center', fontSize: '10px', color: 'var(--text-muted)', padding: '4px 0' }}>
+            No results yet — run a test
+          </div>
+        ) : null}
+      </div>
 
       {/* Gateway CPU/Memory */}
       {(wan.cpu != null || wan.mem != null) && (
@@ -342,6 +372,7 @@ export default function UniFiPanel({ config }) {
   const [isConnected, setIsConnected] = useState(unifi.isConnected());
   const [activeTab, setActiveTab] = useState('clients');
   const [currentPage, setCurrentPage] = useState({ clients: 0, devices: 0, wan: 0 });
+  const [speedTestRunning, setSpeedTestRunning] = useState(false);
   const reconnectAttemptRef = useState(false);
 
   const language = settings?.language || 'en-GB';
@@ -440,6 +471,29 @@ export default function UniFiPanel({ config }) {
   const handleRefresh = () => {
     vibrate();
     if (unifi.isConnected()) unifi.fetchAll();
+  };
+
+  const handleSpeedTest = async () => {
+    if (speedTestRunning || !unifi.isConnected()) return;
+    setSpeedTestRunning(true);
+    try {
+      await unifi.runSpeedTest();
+      // Poll for results every 5s for up to 60s
+      let attempts = 0;
+      const poll = setInterval(async () => {
+        attempts++;
+        const results = await unifi.getSpeedTestResults();
+        if (results?.download || attempts >= 12) {
+          clearInterval(poll);
+          setSpeedTestRunning(false);
+          // Refresh all data to get updated speed test results
+          unifi.fetchAll();
+        }
+      }, 5000);
+    } catch (err) {
+      console.error('[UniFi] Speed test error:', err);
+      setSpeedTestRunning(false);
+    }
   };
 
   // Not connected state
@@ -560,7 +614,7 @@ export default function UniFiPanel({ config }) {
 
         {/* WAN Tab */}
         {activeTab === 'wan' && (
-          <WanOverview health={data.health} />
+          <WanOverview health={data.health} onSpeedTest={handleSpeedTest} speedTestRunning={speedTestRunning} />
         )}
       </div>
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
