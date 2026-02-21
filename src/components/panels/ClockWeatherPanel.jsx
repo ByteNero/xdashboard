@@ -68,6 +68,7 @@ function parseICalDate(dateStr) {
 export default function ClockWeatherPanel({ config }) {
   const [time, setTime] = useState(new Date());
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [countdownIndex, setCountdownIndex] = useState(0);
   const [weatherData, setWeatherData] = useState(null);
   const [weatherLocations, setWeatherLocations] = useState([]);
   const [calendarEvents, setCalendarEvents] = useState([]);
@@ -393,122 +394,133 @@ export default function ClockWeatherPanel({ config }) {
             </div>
           )}
 
-          {/* Countdown Timers - Live */}
-          {countdowns.length > 0 && (
-            <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border-color)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px', fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                <Timer size={10} />
-                <span>{getLabel('countdown')}</span>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                {countdowns.map((countdown) => {
-                  const target = new Date(countdown.targetDate + 'T00:00:00');
-                  const now = time; // uses live time state (updates every second)
-                  const diffMs = target - now;
-                  const isPast = diffMs <= 0;
-                  const absDiff = Math.abs(diffMs);
+          {/* Countdown Timers - Sliding Carousel */}
+          {countdowns.length > 0 && (() => {
+            const safeIdx = countdownIndex >= countdowns.length ? 0 : countdownIndex;
+            const countdown = countdowns[safeIdx];
+            const target = new Date(countdown.targetDate + 'T00:00:00');
+            const now = time;
+            const diffMs = target - now;
+            const isPast = diffMs <= 0;
+            const absDiff = Math.abs(diffMs);
 
-                  const totalSecs = Math.floor(absDiff / 1000);
-                  const d = Math.floor(totalSecs / 86400);
-                  const h = Math.floor((totalSecs % 86400) / 3600);
-                  const m = Math.floor((totalSecs % 3600) / 60);
-                  const s = totalSecs % 60;
+            const totalSecs = Math.floor(absDiff / 1000);
+            const d = Math.floor(totalSecs / 86400);
+            const h = Math.floor((totalSecs % 86400) / 3600);
+            const m = Math.floor((totalSecs % 3600) / 60);
+            const s = totalSecs % 60;
 
-                  let statusColor;
-                  if (isPast) {
-                    statusColor = 'var(--text-muted)';
-                  } else if (d === 0 && h === 0) {
-                    statusColor = 'var(--success)';
-                  } else if (d <= 7) {
-                    statusColor = 'var(--warning)';
-                  } else {
-                    statusColor = 'var(--accent-primary)';
-                  }
+            let statusColor;
+            if (isPast) {
+              statusColor = 'var(--text-muted)';
+            } else if (d === 0 && h === 0) {
+              statusColor = 'var(--success)';
+            } else if (d <= 7) {
+              statusColor = 'var(--warning)';
+            } else {
+              statusColor = 'var(--accent-primary)';
+            }
 
-                  const timerBlockStyle = {
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    minWidth: '36px'
-                  };
-                  const timerNumStyle = {
-                    fontSize: '22px',
-                    fontWeight: '700',
-                    fontFamily: 'var(--font-display)',
-                    color: isPast ? 'var(--text-muted)' : 'var(--text-primary)',
-                    lineHeight: 1
-                  };
-                  const timerLabelStyle = {
-                    fontSize: '9px',
-                    color: 'var(--text-muted)',
-                    textTransform: 'uppercase',
-                    marginTop: '3px'
-                  };
-                  const separatorStyle = {
-                    fontSize: '22px',
-                    fontWeight: '700',
-                    fontFamily: 'var(--font-display)',
-                    color: 'var(--text-muted)',
-                    opacity: 0.4,
-                    alignSelf: 'flex-start',
-                    lineHeight: 1
-                  };
+            const timerBlockStyle = { display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: '36px' };
+            const timerNumStyle = { fontSize: '22px', fontWeight: '700', fontFamily: 'var(--font-display)', color: isPast ? 'var(--text-muted)' : 'var(--text-primary)', lineHeight: 1 };
+            const timerLabelStyle = { fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase', marginTop: '3px' };
+            const separatorStyle = { fontSize: '22px', fontWeight: '700', fontFamily: 'var(--font-display)', color: 'var(--text-muted)', opacity: 0.4, alignSelf: 'flex-start', lineHeight: 1 };
 
-                  return (
-                    <div
-                      key={countdown.id}
-                      style={{
-                        padding: '10px 12px',
-                        background: 'var(--bg-card)',
-                        borderRadius: '6px',
-                        borderLeft: `3px solid ${statusColor}`
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                        <div style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, minWidth: 0 }}>
-                          {countdown.name}
-                        </div>
-                        <div style={{ fontSize: '10px', color: 'var(--text-muted)', whiteSpace: 'nowrap', marginLeft: '8px' }}>
-                          {target.toLocaleDateString(language, { day: 'numeric', month: 'short', year: 'numeric' })}
-                        </div>
-                      </div>
-                      {isPast ? (
-                        <div style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-muted)', textAlign: 'center', fontFamily: 'var(--font-display)' }}>
-                          {getLabel('passed')}
-                        </div>
-                      ) : (
-                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gap: '6px' }}>
-                          {d > 0 && (
-                            <>
-                              <div style={timerBlockStyle}>
-                                <span style={timerNumStyle}>{d}</span>
-                                <span style={timerLabelStyle}>{getLabel('days')}</span>
-                              </div>
-                              <span style={separatorStyle}>:</span>
-                            </>
-                          )}
-                          <div style={timerBlockStyle}>
-                            <span style={timerNumStyle}>{String(h).padStart(2, '0')}</span>
-                            <span style={timerLabelStyle}>{getLabel('hours')}</span>
-                          </div>
-                          <span style={separatorStyle}>:</span>
-                          <div style={timerBlockStyle}>
-                            <span style={timerNumStyle}>{String(m).padStart(2, '0')}</span>
-                            <span style={timerLabelStyle}>{getLabel('mins')}</span>
-                          </div>
-                          <span style={separatorStyle}>:</span>
-                          <div style={timerBlockStyle}>
-                            <span style={timerNumStyle}>{String(s).padStart(2, '0')}</span>
-                            <span style={timerLabelStyle}>{getLabel('secs')}</span>
-                          </div>
-                        </div>
-                      )}
+            return (
+              <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border-color)' }}>
+                {/* Header with nav */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px', fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  <Timer size={10} />
+                  <span>{getLabel('countdown')}</span>
+                  {countdowns.length > 1 && (
+                    <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <button
+                        onClick={() => setCountdownIndex(i => i > 0 ? i - 1 : countdowns.length - 1)}
+                        style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '0 2px', fontSize: '12px', lineHeight: 1 }}
+                      >‹</button>
+                      <span style={{ fontSize: '9px', fontVariantNumeric: 'tabular-nums' }}>{safeIdx + 1}/{countdowns.length}</span>
+                      <button
+                        onClick={() => setCountdownIndex(i => i < countdowns.length - 1 ? i + 1 : 0)}
+                        style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '0 2px', fontSize: '12px', lineHeight: 1 }}
+                      >›</button>
+                    </span>
+                  )}
+                </div>
+
+                {/* Single countdown card */}
+                <div
+                  style={{
+                    padding: '10px 12px',
+                    background: 'var(--bg-card)',
+                    borderRadius: '6px',
+                    borderLeft: `3px solid ${statusColor}`
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: '500', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, minWidth: 0 }}>
+                      {countdown.name}
                     </div>
-                  );
-                })}
+                    <div style={{ fontSize: '10px', color: 'var(--text-muted)', whiteSpace: 'nowrap', marginLeft: '8px' }}>
+                      {target.toLocaleDateString(language, { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </div>
+                  </div>
+                  {isPast ? (
+                    <div style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-muted)', textAlign: 'center', fontFamily: 'var(--font-display)' }}>
+                      {getLabel('passed')}
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gap: '6px' }}>
+                      {d > 0 && (
+                        <>
+                          <div style={timerBlockStyle}>
+                            <span style={timerNumStyle}>{d}</span>
+                            <span style={timerLabelStyle}>{getLabel('days')}</span>
+                          </div>
+                          <span style={separatorStyle}>:</span>
+                        </>
+                      )}
+                      <div style={timerBlockStyle}>
+                        <span style={timerNumStyle}>{String(h).padStart(2, '0')}</span>
+                        <span style={timerLabelStyle}>{getLabel('hours')}</span>
+                      </div>
+                      <span style={separatorStyle}>:</span>
+                      <div style={timerBlockStyle}>
+                        <span style={timerNumStyle}>{String(m).padStart(2, '0')}</span>
+                        <span style={timerLabelStyle}>{getLabel('mins')}</span>
+                      </div>
+                      <span style={separatorStyle}>:</span>
+                      <div style={timerBlockStyle}>
+                        <span style={timerNumStyle}>{String(s).padStart(2, '0')}</span>
+                        <span style={timerLabelStyle}>{getLabel('secs')}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Dots indicator */}
+                {countdowns.length > 1 && (
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: '4px', marginTop: '6px' }}>
+                    {countdowns.map((_, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setCountdownIndex(i)}
+                        style={{
+                          width: i === safeIdx ? '16px' : '6px',
+                          height: '6px',
+                          borderRadius: '3px',
+                          background: i === safeIdx ? statusColor : 'var(--border-color)',
+                          border: 'none',
+                          cursor: 'pointer',
+                          padding: 0,
+                          transition: 'all 0.2s ease'
+                        }}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* No weather for this clock */}
           {!currentWeather && isWeatherConnected && currentClock?.city && (

@@ -57,12 +57,11 @@ function CameraModal({ cameras, initialCameraId, haBaseUrl, scryptedConfig, inte
     return cam.url || null;
   }, [haBaseUrl, scryptedConfig]);
 
-  // Proxy a URL if needed (skip proxy for local URLs in live mode for speed)
-  const proxyUrl = useCallback((rawUrl, skipProxyIfLocal = false) => {
+  // Proxy a URL — always go through the server proxy since the browser
+  // may be on a different host (e.g. Docker on Proxmox LXC) and can't
+  // reach camera IPs directly due to CORS
+  const proxyUrl = useCallback((rawUrl) => {
     if (!rawUrl) return null;
-    if (skipProxyIfLocal && isLocalUrl(rawUrl)) {
-      return rawUrl; // Direct access on LAN — faster
-    }
     let pUrl = `/api/proxy?url=${encodeURIComponent(rawUrl)}`;
     // Add auth
     if (camera.source === 'ha') {
@@ -93,8 +92,8 @@ function CameraModal({ cameras, initialCameraId, haBaseUrl, scryptedConfig, inte
       const rawUrl = getRawSnapshotUrl(camera);
       if (!rawUrl) return;
 
-      // Use direct URL for local cameras (faster), proxy for remote
-      const baseUrl = isLocalUrl(rawUrl) ? rawUrl : proxyUrl(rawUrl);
+      // Always proxy — browser may not be on same network as camera (Docker/LXC)
+      const baseUrl = proxyUrl(rawUrl);
       if (!baseUrl) return;
 
       const cacheBuster = `_=${Date.now()}&r=${Math.random()}`;
