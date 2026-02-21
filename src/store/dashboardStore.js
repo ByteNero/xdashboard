@@ -4,7 +4,7 @@ import { homeAssistant, uptimeKuma, weather, tautulli } from '../services';
 import { unifi } from '../services/unifi';
 
 // Increment this when making breaking changes to force cache reset
-const STORE_VERSION = 5;
+const STORE_VERSION = 6;
 
 const defaultPanels = [
   {
