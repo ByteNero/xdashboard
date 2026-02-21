@@ -94,14 +94,12 @@ export default function CameraPanel({ config }) {
     }
   }, [configuredCameras, haConnected, selectedCamera]);
 
-  // Auto-refresh camera images
-  // - Snapshot mode: slower refresh (default 5s)
-  // - MJPEG mode: faster refresh for "near-live" feel (default 1s)
+  // Auto-refresh camera images (snapshot mode only — MJPEG streams are continuous)
   useEffect(() => {
-    // Check if any camera is in mjpeg mode
-    const hasMjpegCamera = cameras.some(c => c.streamType === 'mjpeg');
-    const defaultInterval = hasMjpegCamera ? 1000 : 5000;
-    const interval = config?.refreshInterval || defaultInterval;
+    // Only poll for cameras using snapshot mode; true MJPEG streams don't need polling
+    const hasSnapshotCamera = cameras.some(c => c.streamType === 'snapshot' || !c.streamType);
+    if (!hasSnapshotCamera) return;
+    const interval = config?.refreshInterval || 5000;
     const timer = setInterval(() => {
       setRefreshKey(k => k + 1);
     }, interval);
@@ -222,6 +220,7 @@ export default function CameraPanel({ config }) {
               camera={currentCamera}
               haBaseUrl={haBaseUrl}
               scryptedConfig={scryptedConfig}
+              integrations={integrations}
               refreshKey={refreshKey}
               showOverlay={true}
             />
@@ -246,6 +245,7 @@ export default function CameraPanel({ config }) {
                   camera={cam}
                   haBaseUrl={haBaseUrl}
                   scryptedConfig={scryptedConfig}
+                  integrations={integrations}
                   refreshKey={refreshKey}
                   compact={true}
                 />
@@ -270,16 +270,31 @@ function detectStreamType(url) {
 }
 
 // Camera view component supporting multiple stream types
-function CameraView({ camera, haBaseUrl, refreshKey, scryptedConfig, compact = false, showOverlay = false }) {
+function CameraView({ camera, haBaseUrl, refreshKey, scryptedConfig, integrations, compact = false, showOverlay = false }) {
   const videoRef = useRef(null);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
 
   // Get the appropriate URL based on stream type
   const getStreamUrl = () => {
+    const streamType = camera.streamType || 'snapshot';
+    const isLive = streamType === 'mjpeg';
+
     // Home Assistant cameras
     if (camera.source === 'ha') {
-      if (!camera.entityPicture || !haBaseUrl) return null;
+      if (!haBaseUrl) return null;
+
+      if (isLive && camera.entityId) {
+        // True MJPEG stream from HA — continuous multipart stream, no polling needed
+        const mjpegUrl = `${haBaseUrl}/api/camera_proxy_stream/${camera.entityId}`;
+        let proxyUrl = `/api/proxy?url=${encodeURIComponent(mjpegUrl)}`;
+        const haToken = integrations?.homeAssistant?.token;
+        if (haToken) proxyUrl += `&token=${encodeURIComponent(haToken)}`;
+        return proxyUrl;
+      }
+
+      // Snapshot mode
+      if (!camera.entityPicture) return null;
       const baseUrl = camera.entityPicture.startsWith('http')
         ? camera.entityPicture
         : `${haBaseUrl}${camera.entityPicture}`;
@@ -289,67 +304,63 @@ function CameraView({ camera, haBaseUrl, refreshKey, scryptedConfig, compact = f
     // Scrypted cameras - support both webhook URLs and device IDs
     if (camera.source === 'scrypted') {
       let streamUrl;
-      const streamType = camera.streamType || 'snapshot';
 
-      // If webhook URL is provided directly, use it
       if (camera.webhookUrl) {
         streamUrl = camera.webhookUrl;
 
-        // For "live" mode, append /getVideoStream if not already there
-        // Note: Scrypted webhook returns single JPEG, so we poll rapidly for "live-ish" feel
-        if ((streamType === 'mjpeg' || streamType === 'live') && !streamUrl.includes('/getVideoStream')) {
+        if (isLive && !streamUrl.includes('/getVideoStream')) {
+          // Append /getVideoStream for MJPEG stream from Scrypted webhook
           streamUrl = streamUrl.replace(/\/$/, '') + '/getVideoStream';
         }
       } else if (camera.scryptedId) {
-        // Build URL from device ID (requires NVR plugin)
         const baseUrl = scryptedConfig?.url?.replace(/\/$/, '');
         if (!baseUrl) return null;
 
         const token = camera.token || scryptedConfig?.token;
         const deviceId = camera.scryptedId;
-        const streamType = camera.streamType || 'snapshot';
 
-        // Different Scrypted endpoints based on stream type
         if (streamType === 'hls') {
           streamUrl = `${baseUrl}/endpoint/@scrypted/nvr/public/${deviceId}/channel/0/hls/index.m3u8`;
-        } else if (streamType === 'mjpeg') {
+        } else if (isLive) {
           streamUrl = `${baseUrl}/endpoint/@scrypted/nvr/public/${deviceId}/channel/0/mjpeg`;
         } else {
           streamUrl = `${baseUrl}/endpoint/@scrypted/nvr/public/thumbnail/${deviceId}.jpg`;
         }
 
-        // Always proxy to avoid CORS issues
-        streamUrl = `/api/proxy?url=${encodeURIComponent(streamUrl)}`;
+        let proxyUrl = `/api/proxy?url=${encodeURIComponent(streamUrl)}`;
         if (token?.startsWith('cookie:')) {
-          streamUrl += `&cookie=${encodeURIComponent(token.replace('cookie:', ''))}`;
+          proxyUrl += `&cookie=${encodeURIComponent(token.replace('cookie:', ''))}`;
         } else if (token) {
-          streamUrl += `&token=${encodeURIComponent(token)}`;
+          proxyUrl += `&token=${encodeURIComponent(token)}`;
         }
+
+        // Only add cache buster for snapshots — MJPEG is a continuous stream
+        if (!isLive) proxyUrl += `&_=${refreshKey}`;
+        return proxyUrl;
       } else {
         return null;
       }
 
-      // Always proxy webhook URLs to avoid CORS issues
+      // Proxy webhook URLs
       if (camera.webhookUrl) {
         streamUrl = `/api/proxy?url=${encodeURIComponent(streamUrl)}`;
       }
 
-      // Always add cache buster for Scrypted - webhook returns single images, not streams
-      streamUrl += `${streamUrl.includes('?') ? '&' : '?'}_=${refreshKey}`;
-
+      // Only add cache buster for snapshots — MJPEG is continuous
+      if (!isLive) {
+        streamUrl += `${streamUrl.includes('?') ? '&' : '?'}_=${refreshKey}`;
+      }
       return streamUrl;
     }
 
     if (!camera.url) return null;
 
-    let finalUrl = camera.url;
+    // Direct URL camera
+    let finalUrl = `/api/proxy?url=${encodeURIComponent(camera.url)}`;
 
-    // Always proxy to avoid CORS issues
-    finalUrl = `/api/proxy?url=${encodeURIComponent(camera.url)}`;
-
-    // For snapshot URLs, add cache buster
-    if (camera.streamType === 'snapshot') {
-      return `${finalUrl}${finalUrl.includes('?') ? '&' : '?'}_=${refreshKey}`;
+    // Only add cache buster for snapshots — MJPEG streams are continuous
+    if (!isLive) {
+      finalUrl += `${finalUrl.includes('?') ? '&' : '?'}_=${refreshKey}`;
     }
 
     return finalUrl;
@@ -443,15 +454,19 @@ function CameraView({ camera, haBaseUrl, refreshKey, scryptedConfig, compact = f
     );
   }
 
-  // MJPEG stream (continuous image stream)
+  // MJPEG stream (continuous image stream — browser handles multipart natively)
   if (streamType === 'mjpeg') {
     return (
       <div style={containerStyle}>
         <img
           src={streamUrl}
           alt={camera.name}
-          onLoad={handleLoad}
-          onError={handleError}
+          onLoad={() => { setLoading(false); setError(false); }}
+          onError={() => {
+            // For MJPEG, the stream may end and that triggers onerror
+            // Only show error if we never loaded successfully
+            if (loading) { setLoading(false); setError(true); }
+          }}
           style={{ width: '100%', height: 'auto', display: loading ? 'none' : 'block' }}
         />
         {loading && (
@@ -461,7 +476,8 @@ function CameraView({ camera, haBaseUrl, refreshKey, scryptedConfig, compact = f
         )}
         <div style={overlayStyle}>
           {camera.name}
-          <span style={{ marginLeft: '8px', fontSize: '9px', opacity: 0.7, textTransform: 'uppercase' }}>
+          <span style={{ marginLeft: '8px', fontSize: '9px', opacity: 0.7, textTransform: 'uppercase', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ff3333', display: 'inline-block', animation: 'pulse-danger 1.5s ease-in-out infinite' }} />
             LIVE
           </span>
         </div>

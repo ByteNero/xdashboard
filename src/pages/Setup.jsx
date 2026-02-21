@@ -1532,12 +1532,13 @@ function CameraList({ cameras, onChange, haConnected }) {
               </div>
             )}
             <div style={{ marginTop: '8px', fontSize: '11px', color: 'var(--text-muted)' }}>
-              {cam.source === 'scrypted' && cam.streamType === 'mjpeg' && '💡 MJPEG uses fast polling (~1fps) for near-live view. /getVideoStream appended automatically.'}
+              {cam.source === 'scrypted' && cam.streamType === 'mjpeg' && '💡 LIVE — True MJPEG stream via /getVideoStream. Continuous video, no polling.'}
               {cam.source === 'scrypted' && cam.streamType === 'snapshot' && '💡 Paste base Webhook URL from Scrypted. Refreshes every 5 seconds.'}
               {cam.source === 'scrypted' && cam.streamType === 'hls' && '💡 HLS requires Scrypted NVR plugin (paid) or go2rtc'}
-              {cam.source !== 'scrypted' && cam.streamType === 'mjpeg' && '💡 MJPEG streams are live (requires true MJPEG source like go2rtc)'}
+              {cam.source === 'ha' && cam.streamType === 'mjpeg' && '💡 LIVE — Continuous MJPEG stream via HA camera proxy. Real-time video feed.'}
+              {cam.source !== 'scrypted' && cam.source !== 'ha' && cam.streamType === 'mjpeg' && '💡 LIVE — True MJPEG stream (works with go2rtc, Frigate, or any MJPEG source)'}
               {cam.source !== 'scrypted' && cam.streamType === 'hls' && '💡 HLS works with go2rtc, Frigate, or any HLS stream'}
-              {cam.source !== 'scrypted' && cam.streamType === 'snapshot' && '💡 Snapshots refresh every few seconds'}
+              {cam.streamType === 'snapshot' && cam.source !== 'scrypted' && '💡 Snapshots refresh every few seconds'}
             </div>
           </div>
         );
