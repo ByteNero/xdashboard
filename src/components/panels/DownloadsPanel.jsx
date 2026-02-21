@@ -241,10 +241,8 @@ export default function DownloadsPanel({ config }) {
         // qBittorrent API
         const apiUrl = `${baseUrl}/api/v2`;
 
-        // Use proxy in dev mode
-        const fetchUrl = (endpoint) => import.meta.env.DEV
-          ? `/api/proxy?url=${encodeURIComponent(`${apiUrl}${endpoint}`)}`
-          : `${apiUrl}${endpoint}`;
+        // Always use proxy to avoid CORS issues
+        const fetchUrl = (endpoint) => `/api/proxy?url=${encodeURIComponent(`${apiUrl}${endpoint}`)}`;
 
         // Get torrents
         const torrentsRes = await fetch(fetchUrl('/torrents/info'), {
@@ -281,9 +279,7 @@ export default function DownloadsPanel({ config }) {
 
       } else if (clientId === 'deluge') {
         // Deluge Web API (JSON-RPC)
-        const fetchUrl = import.meta.env.DEV
-          ? `/api/proxy?url=${encodeURIComponent(`${baseUrl}/json`)}`
-          : `${baseUrl}/json`;
+        const fetchUrl = `/api/proxy?url=${encodeURIComponent(`${baseUrl}/json`)}`;
 
         // Helper for Deluge requests with timeout
         const delugeRequest = async (method, params, id) => {
@@ -381,9 +377,7 @@ export default function DownloadsPanel({ config }) {
         const apiKey = cfg.apiKey || '';
         const apiUrl = `${baseUrl}/api?output=json&apikey=${apiKey}`;
 
-        const fetchUrl = (mode) => import.meta.env.DEV
-          ? `/api/proxy?url=${encodeURIComponent(`${apiUrl}&mode=${mode}`)}`
-          : `${apiUrl}&mode=${mode}`;
+        const fetchUrl = (mode) => `/api/proxy?url=${encodeURIComponent(`${apiUrl}&mode=${mode}`)}`;
 
         // Get queue
         const queueRes = await fetch(fetchUrl('queue'));
@@ -433,9 +427,7 @@ export default function DownloadsPanel({ config }) {
       } else if (clientId === 'transmission') {
         // Transmission RPC API
         const rpcUrl = `${baseUrl}/transmission/rpc`;
-        const fetchUrl = import.meta.env.DEV
-          ? `/api/proxy?url=${encodeURIComponent(rpcUrl)}`
-          : rpcUrl;
+        const fetchUrl = `/api/proxy?url=${encodeURIComponent(rpcUrl)}`;
 
         // Get session-id first (Transmission requires it)
         let sessionId = '';

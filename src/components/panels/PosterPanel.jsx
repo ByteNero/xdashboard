@@ -173,14 +173,8 @@ const AddToLibraryButton = ({ item, arrConfig, tmdbApiKey, onAdded }) => {
 
         // First get root folders and quality profiles
         const [rootFoldersRes, profilesRes] = await Promise.all([
-          fetch(import.meta.env.DEV
-            ? `/api/proxy?url=${encodeURIComponent(`${baseUrl}/api/v3/rootfolder`)}&apiKey=${arrConfig.radarr.apiKey}`
-            : `${baseUrl}/api/v3/rootfolder?apikey=${arrConfig.radarr.apiKey}`
-          ),
-          fetch(import.meta.env.DEV
-            ? `/api/proxy?url=${encodeURIComponent(`${baseUrl}/api/v3/qualityprofile`)}&apiKey=${arrConfig.radarr.apiKey}`
-            : `${baseUrl}/api/v3/qualityprofile?apikey=${arrConfig.radarr.apiKey}`
-          )
+          fetch(`/api/proxy?url=${encodeURIComponent(`${baseUrl}/api/v3/rootfolder`)}&apiKey=${arrConfig.radarr.apiKey}`),
+          fetch(`/api/proxy?url=${encodeURIComponent(`${baseUrl}/api/v3/qualityprofile`)}&apiKey=${arrConfig.radarr.apiKey}`)
         ]);
 
         if (!rootFoldersRes.ok || !profilesRes.ok) throw new Error('Failed to get Radarr config');
@@ -191,9 +185,7 @@ const AddToLibraryButton = ({ item, arrConfig, tmdbApiKey, onAdded }) => {
         if (!rootFolders.length || !profiles.length) throw new Error('No root folder or quality profile configured');
 
         // Add movie
-        const addUrl = import.meta.env.DEV
-          ? `/api/proxy?url=${encodeURIComponent(`${baseUrl}/api/v3/movie`)}&apiKey=${arrConfig.radarr.apiKey}`
-          : `${baseUrl}/api/v3/movie?apikey=${arrConfig.radarr.apiKey}`;
+        const addUrl = `/api/proxy?url=${encodeURIComponent(`${baseUrl}/api/v3/movie`)}&apiKey=${arrConfig.radarr.apiKey}`;
 
         const addRes = await fetch(addUrl, {
           method: 'POST',
@@ -228,14 +220,8 @@ const AddToLibraryButton = ({ item, arrConfig, tmdbApiKey, onAdded }) => {
 
         // Get root folders and quality profiles
         const [rootFoldersRes, profilesRes] = await Promise.all([
-          fetch(import.meta.env.DEV
-            ? `/api/proxy?url=${encodeURIComponent(`${baseUrl}/api/v3/rootfolder`)}&apiKey=${arrConfig.sonarr.apiKey}`
-            : `${baseUrl}/api/v3/rootfolder?apikey=${arrConfig.sonarr.apiKey}`
-          ),
-          fetch(import.meta.env.DEV
-            ? `/api/proxy?url=${encodeURIComponent(`${baseUrl}/api/v3/qualityprofile`)}&apiKey=${arrConfig.sonarr.apiKey}`
-            : `${baseUrl}/api/v3/qualityprofile?apikey=${arrConfig.sonarr.apiKey}`
-          )
+          fetch(`/api/proxy?url=${encodeURIComponent(`${baseUrl}/api/v3/rootfolder`)}&apiKey=${arrConfig.sonarr.apiKey}`),
+          fetch(`/api/proxy?url=${encodeURIComponent(`${baseUrl}/api/v3/qualityprofile`)}&apiKey=${arrConfig.sonarr.apiKey}`)
         ]);
 
         if (!rootFoldersRes.ok || !profilesRes.ok) throw new Error('Failed to get Sonarr config');
@@ -246,9 +232,7 @@ const AddToLibraryButton = ({ item, arrConfig, tmdbApiKey, onAdded }) => {
         if (!rootFolders.length || !profiles.length) throw new Error('No root folder or quality profile configured');
 
         // Add series
-        const addUrl = import.meta.env.DEV
-          ? `/api/proxy?url=${encodeURIComponent(`${baseUrl}/api/v3/series`)}&apiKey=${arrConfig.sonarr.apiKey}`
-          : `${baseUrl}/api/v3/series?apikey=${arrConfig.sonarr.apiKey}`;
+        const addUrl = `/api/proxy?url=${encodeURIComponent(`${baseUrl}/api/v3/series`)}&apiKey=${arrConfig.sonarr.apiKey}`;
 
         const addRes = await fetch(addUrl, {
           method: 'POST',
@@ -603,9 +587,7 @@ export default function PosterPanel({ config }) {
     if (arr.radarr?.enabled && arr.radarr?.url && arr.radarr?.apiKey) {
       try {
         const baseUrl = arr.radarr.url.replace(/\/$/, '');
-        const proxyUrl = import.meta.env.DEV
-          ? `/api/proxy?url=${encodeURIComponent(`${baseUrl}/api/v3/movie`)}&apiKey=${arr.radarr.apiKey}`
-          : `${baseUrl}/api/v3/movie?apikey=${arr.radarr.apiKey}`;
+        const proxyUrl = `/api/proxy?url=${encodeURIComponent(`${baseUrl}/api/v3/movie`)}&apiKey=${arr.radarr.apiKey}`;
 
         console.log('[Poster] Fetching Radarr library...');
         const res = await fetch(proxyUrl);
@@ -638,9 +620,7 @@ export default function PosterPanel({ config }) {
     if (arr.sonarr?.enabled && arr.sonarr?.url && arr.sonarr?.apiKey) {
       try {
         const baseUrl = arr.sonarr.url.replace(/\/$/, '');
-        const proxyUrl = import.meta.env.DEV
-          ? `/api/proxy?url=${encodeURIComponent(`${baseUrl}/api/v3/series`)}&apiKey=${arr.sonarr.apiKey}`
-          : `${baseUrl}/api/v3/series?apikey=${arr.sonarr.apiKey}`;
+        const proxyUrl = `/api/proxy?url=${encodeURIComponent(`${baseUrl}/api/v3/series`)}&apiKey=${arr.sonarr.apiKey}`;
 
         console.log('[Poster] Fetching Sonarr library...');
         const res = await fetch(proxyUrl);

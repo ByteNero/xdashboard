@@ -230,10 +230,8 @@ class WeatherService {
       .replace('{units}', location.units)
       .replace('{apiKey}', location.apiKey || '');
 
-    // Use proxy in dev
-    const proxyUrl = import.meta.env.DEV
-      ? `/api/proxy?url=${encodeURIComponent(url)}`
-      : url;
+    // Always use proxy to avoid CORS issues
+    const proxyUrl = `/api/proxy?url=${encodeURIComponent(url)}`;
 
     const response = await fetch(proxyUrl, { signal });
 

@@ -217,12 +217,8 @@ export default function ArrPanel({ config }) {
         // Fetch requests - use proxy in dev mode to bypass CORS
         try {
           const apiUrl = `${baseUrl}/api/v1/request?take=20&skip=0&sort=added`;
-          const fetchUrl = import.meta.env.DEV
-            ? `/api/proxy?url=${encodeURIComponent(apiUrl)}&apiKey=${encodeURIComponent(cfg.apiKey)}`
-            : apiUrl;
-          const overseerrHeaders = import.meta.env.DEV
-            ? { 'Accept': 'application/json' }
-            : { 'X-Api-Key': cfg.apiKey, 'Accept': 'application/json' };
+          const fetchUrl = `/api/proxy?url=${encodeURIComponent(apiUrl)}&apiKey=${encodeURIComponent(cfg.apiKey)}`;
+          const overseerrHeaders = { 'Accept': 'application/json' };
 
           const res = await fetch(fetchUrl, { headers: overseerrHeaders });
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -246,9 +242,7 @@ export default function ArrPanel({ config }) {
               try {
                 const mediaType = r.type === 'movie' ? 'movie' : 'tv';
                 const mediaApiUrl = `${baseUrl}/api/v1/${mediaType}/${tmdbId}`;
-                const mediaFetchUrl = import.meta.env.DEV
-                  ? `/api/proxy?url=${encodeURIComponent(mediaApiUrl)}&apiKey=${encodeURIComponent(cfg.apiKey)}`
-                  : mediaApiUrl;
+                const mediaFetchUrl = `/api/proxy?url=${encodeURIComponent(mediaApiUrl)}&apiKey=${encodeURIComponent(cfg.apiKey)}`;
                 const mediaRes = await fetch(mediaFetchUrl, { headers: overseerrHeaders });
                 if (mediaRes.ok) {
                   const mediaData = await mediaRes.json();

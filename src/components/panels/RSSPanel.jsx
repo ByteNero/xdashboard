@@ -28,10 +28,12 @@ const stripHtml = (html) => {
 // Feed item card
 const FeedItem = ({ item, feedColor }) => {
   return (
-    <a
-      href={item.link}
-      target="_blank"
-      rel="noopener noreferrer"
+    <div
+      onClick={(e) => {
+        e.preventDefault();
+        // Don't navigate in kiosk - just vibrate for feedback
+        if (navigator.vibrate) navigator.vibrate(20);
+      }}
       style={{
         display: 'block',
         padding: '10px',
@@ -118,7 +120,7 @@ const FeedItem = ({ item, feedColor }) => {
           </span>
         )}
       </div>
-    </a>
+    </div>
   );
 };
 
@@ -192,11 +194,8 @@ export default function RSSPanel({ config }) {
 
     for (const feed of enabledFeeds) {
       try {
-        // Use a CORS proxy for RSS feeds
-        const proxyUrl = import.meta.env.DEV
-          ? `/api/proxy?url=${encodeURIComponent(feed.url)}`
-          : feed.url;
-
+        // Always use server proxy for CORS
+        const proxyUrl = `/api/proxy?url=${encodeURIComponent(feed.url)}`;
         const res = await fetch(proxyUrl);
         if (!res.ok) {
           newStatus[feed.id] = 'error';

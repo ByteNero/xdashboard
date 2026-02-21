@@ -198,9 +198,7 @@ export default function DockerPanel({ config }) {
         };
 
         // First get endpoints
-        const fetchUrl = import.meta.env.DEV
-          ? `/api/proxy?url=${encodeURIComponent(`${baseUrl}/api/endpoints`)}`
-          : `${baseUrl}/api/endpoints`;
+        const fetchUrl = `/api/proxy?url=${encodeURIComponent(`${baseUrl}/api/endpoints`)}`;
 
         const endpointsRes = await fetch(fetchUrl, { headers });
         if (!endpointsRes.ok) throw new Error(`HTTP ${endpointsRes.status}`);
@@ -208,9 +206,7 @@ export default function DockerPanel({ config }) {
 
         // Get containers from first endpoint (or specified)
         const endpointId = dockerConfig.endpointId || (endpoints[0]?.Id || 1);
-        const containersUrl = import.meta.env.DEV
-          ? `/api/proxy?url=${encodeURIComponent(`${baseUrl}/api/endpoints/${endpointId}/docker/containers/json?all=true`)}`
-          : `${baseUrl}/api/endpoints/${endpointId}/docker/containers/json?all=true`;
+        const containersUrl = `/api/proxy?url=${encodeURIComponent(`${baseUrl}/api/endpoints/${endpointId}/docker/containers/json?all=true`)}`;
 
         const containersRes = await fetch(containersUrl, { headers });
         if (!containersRes.ok) throw new Error(`HTTP ${containersRes.status}`);
@@ -229,9 +225,7 @@ export default function DockerPanel({ config }) {
 
       } else {
         // Direct Docker API (socket or TCP)
-        const fetchUrl = import.meta.env.DEV
-          ? `/api/proxy?url=${encodeURIComponent(`${baseUrl}/containers/json?all=true`)}`
-          : `${baseUrl}/containers/json?all=true`;
+        const fetchUrl = `/api/proxy?url=${encodeURIComponent(`${baseUrl}/containers/json?all=true`)}`;
 
         const containersRes = await fetch(fetchUrl);
         if (!containersRes.ok) throw new Error(`HTTP ${containersRes.status}`);

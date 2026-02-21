@@ -593,9 +593,7 @@ function ArrServiceInput({ service, config, onChange, testEndpoint, serviceLabel
 
     try {
       const baseUrl = config.url.replace(/\/$/, '');
-      const proxyUrl = import.meta.env.DEV
-        ? `/api/proxy?url=${encodeURIComponent(`${baseUrl}${testEndpoint}`)}&apiKey=${encodeURIComponent(config.apiKey)}`
-        : `${baseUrl}${testEndpoint}`;
+      const proxyUrl = `/api/proxy?url=${encodeURIComponent(`${baseUrl}${testEndpoint}`)}&apiKey=${encodeURIComponent(config.apiKey)}`;
 
       const res = await fetch(proxyUrl, {
         headers: { 'X-Api-Key': config.apiKey }
@@ -1181,7 +1179,7 @@ function SystemList({ systems, onChange }) {
     setSysStatus(prev => ({ ...prev, [sys.id]: null }));
 
     try {
-      const proxyUrl = import.meta.env.DEV ? `/api/proxy?url=${encodeURIComponent(sys.apiUrl)}` : sys.apiUrl;
+      const proxyUrl = `/api/proxy?url=${encodeURIComponent(sys.apiUrl)}`;
       const res = await fetch(proxyUrl);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
@@ -1257,9 +1255,7 @@ function ScryptedConfig({ config, onChange }) {
       const baseUrl = config.url.replace(/\/$/, '');
 
       // Step 1: Login
-      const loginUrl = import.meta.env.DEV
-        ? `/api/proxy?url=${encodeURIComponent(`${baseUrl}/login`)}`
-        : `${baseUrl}/login`;
+      const loginUrl = `/api/proxy?url=${encodeURIComponent(`${baseUrl}/login`)}`;
 
       const loginRes = await fetch(loginUrl, {
         method: 'POST',
@@ -1419,7 +1415,7 @@ function CameraList({ cameras, onChange, haConnected }) {
       // Test the webhook URL
       setTesting(prev => ({ ...prev, [cam.id]: true }));
       try {
-        const proxyUrl = import.meta.env.DEV ? `/api/proxy?url=${encodeURIComponent(cam.webhookUrl)}` : cam.webhookUrl;
+        const proxyUrl = `/api/proxy?url=${encodeURIComponent(cam.webhookUrl)}`;
         const res = await fetch(proxyUrl, { method: 'HEAD' });
         if (res.ok) {
           setCamStatus(prev => ({ ...prev, [cam.id]: { success: true } }));
@@ -1452,7 +1448,7 @@ function CameraList({ cameras, onChange, haConnected }) {
 
     try {
       // For cameras, we try to fetch the URL and check content type
-      const proxyUrl = import.meta.env.DEV ? `/api/proxy?url=${encodeURIComponent(testUrl)}` : testUrl;
+      const proxyUrl = `/api/proxy?url=${encodeURIComponent(testUrl)}`;
       const res = await fetch(proxyUrl, { method: 'HEAD' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
@@ -1467,7 +1463,7 @@ function CameraList({ cameras, onChange, haConnected }) {
     } catch (err) {
       // Try GET as fallback (some servers don't support HEAD)
       try {
-        const proxyUrl = import.meta.env.DEV ? `/api/proxy?url=${encodeURIComponent(testUrl)}` : testUrl;
+        const proxyUrl = `/api/proxy?url=${encodeURIComponent(testUrl)}`;
         const res = await fetch(proxyUrl);
         if (res.ok) {
           setCamStatus(prev => ({ ...prev, [cam.id]: { success: true } }));
@@ -1592,9 +1588,7 @@ function RSSFeedList({ feeds, onChange }) {
     setFeedStatus(prev => ({ ...prev, [feed.id]: null }));
 
     try {
-      const proxyUrl = import.meta.env.DEV
-        ? `/api/proxy?url=${encodeURIComponent(feed.url)}`
-        : feed.url;
+      const proxyUrl = `/api/proxy?url=${encodeURIComponent(feed.url)}`;
 
       const res = await fetch(proxyUrl);
       if (!res.ok) {

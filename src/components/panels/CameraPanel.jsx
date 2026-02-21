@@ -318,23 +318,19 @@ function CameraView({ camera, haBaseUrl, refreshKey, scryptedConfig, compact = f
           streamUrl = `${baseUrl}/endpoint/@scrypted/nvr/public/thumbnail/${deviceId}.jpg`;
         }
 
-        // For dev mode, proxy through Vite
-        if (import.meta.env.DEV) {
-          streamUrl = `/api/proxy?url=${encodeURIComponent(streamUrl)}`;
-          if (token?.startsWith('cookie:')) {
-            streamUrl += `&cookie=${encodeURIComponent(token.replace('cookie:', ''))}`;
-          } else if (token) {
-            streamUrl += `&token=${encodeURIComponent(token)}`;
-          }
-        } else if (token && !token.startsWith('cookie:')) {
-          streamUrl += `${streamUrl.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`;
+        // Always proxy to avoid CORS issues
+        streamUrl = `/api/proxy?url=${encodeURIComponent(streamUrl)}`;
+        if (token?.startsWith('cookie:')) {
+          streamUrl += `&cookie=${encodeURIComponent(token.replace('cookie:', ''))}`;
+        } else if (token) {
+          streamUrl += `&token=${encodeURIComponent(token)}`;
         }
       } else {
         return null;
       }
 
-      // Proxy for dev mode if webhook URL
-      if (camera.webhookUrl && import.meta.env.DEV) {
+      // Always proxy webhook URLs to avoid CORS issues
+      if (camera.webhookUrl) {
         streamUrl = `/api/proxy?url=${encodeURIComponent(streamUrl)}`;
       }
 
@@ -348,10 +344,8 @@ function CameraView({ camera, haBaseUrl, refreshKey, scryptedConfig, compact = f
 
     let finalUrl = camera.url;
 
-    // Proxy through Vite in dev mode for CORS bypass
-    if (import.meta.env.DEV) {
-      finalUrl = `/api/proxy?url=${encodeURIComponent(camera.url)}`;
-    }
+    // Always proxy to avoid CORS issues
+    finalUrl = `/api/proxy?url=${encodeURIComponent(camera.url)}`;
 
     // For snapshot URLs, add cache buster
     if (camera.streamType === 'snapshot') {

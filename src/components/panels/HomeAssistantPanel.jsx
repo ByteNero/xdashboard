@@ -72,8 +72,13 @@ export default function HomeAssistantPanel({ config }) {
     return () => unsubscribes.forEach(unsub => unsub?.());
   }, [isConnected, entities, loadStates]);
 
+  const vibrate = (pattern = 30) => {
+    if (navigator.vibrate) navigator.vibrate(pattern);
+  };
+
   const handleToggle = async (entity) => {
     if (!homeAssistant.isConnected()) return;
+    vibrate(30);
     setLoading(prev => ({ ...prev, [entity.id]: true }));
     try {
       if (entity.type === 'scene') {
@@ -98,6 +103,7 @@ export default function HomeAssistantPanel({ config }) {
     isLongPress.current = false;
     longPressTimer.current = setTimeout(() => {
       isLongPress.current = true;
+      vibrate([30, 50, 30]); // double buzz for long press
       // Open brightness modal
       const state = entityStates[entity.id];
       const currentBrightness = state?.attributes?.brightness
@@ -305,7 +311,7 @@ export default function HomeAssistantPanel({ config }) {
               {[25, 50, 75, 100].map(val => (
                 <button
                   key={val}
-                  onClick={() => handleBrightnessChange(val)}
+                  onClick={() => { vibrate(20); handleBrightnessChange(val); }}
                   style={{
                     padding: '8px 12px',
                     background: brightness === val ? 'var(--accent-primary)' : 'var(--bg-secondary)',
