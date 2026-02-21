@@ -10,34 +10,150 @@ const vibrate = (pattern = 20) => {
 };
 
 // ========================
-// Fullscreen Camera Modal
+// Check if URL is on local network (skip proxy for speed)
+// ========================
+const isLocalUrl = (url) => {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname;
+    return host.startsWith('192.168.') || host.startsWith('10.') ||
+           host.startsWith('172.') || host === 'localhost' || host === '127.0.0.1';
+  } catch { return false; }
+};
+
+// ========================
+// Fullscreen Camera Modal with double-buffered live polling
 // ========================
 function CameraModal({ cameras, initialCameraId, haBaseUrl, scryptedConfig, integrations, onClose }) {
   const [activeCamId, setActiveCamId] = useState(initialCameraId);
   const [isLive, setIsLive] = useState(false);
-  const [liveKey, setLiveKey] = useState(0);
   const [imgLoaded, setImgLoaded] = useState(false);
-  const liveTimerRef = useRef(null);
+  const [fps, setFps] = useState(0);
+  const visibleImgRef = useRef(null);
+  const bufferImgRef = useRef(null);
+  const liveRunningRef = useRef(false);
   const touchStartRef = useRef(null);
 
   const activeIdx = cameras.findIndex(c => c.id === activeCamId);
   const camera = cameras[activeIdx] || cameras[0];
 
-  // Live mode: rapid polling at 500ms
+  // Get the raw snapshot URL for a camera (no cache buster)
+  const getRawSnapshotUrl = useCallback((cam) => {
+    if (cam.source === 'ha') {
+      if (!haBaseUrl || !cam.entityPicture) return null;
+      return cam.entityPicture.startsWith('http')
+        ? cam.entityPicture
+        : `${haBaseUrl}${cam.entityPicture}`;
+    }
+    if (cam.source === 'scrypted' && cam.webhookUrl) {
+      return cam.webhookUrl;
+    }
+    if (cam.source === 'scrypted' && cam.scryptedId) {
+      const baseUrl = scryptedConfig?.url?.replace(/\/$/, '');
+      if (!baseUrl) return null;
+      return `${baseUrl}/endpoint/@scrypted/nvr/public/thumbnail/${cam.scryptedId}.jpg`;
+    }
+    return cam.url || null;
+  }, [haBaseUrl, scryptedConfig]);
+
+  // Proxy a URL if needed (skip proxy for local URLs in live mode for speed)
+  const proxyUrl = useCallback((rawUrl, skipProxyIfLocal = false) => {
+    if (!rawUrl) return null;
+    if (skipProxyIfLocal && isLocalUrl(rawUrl)) {
+      return rawUrl; // Direct access on LAN — faster
+    }
+    let pUrl = `/api/proxy?url=${encodeURIComponent(rawUrl)}`;
+    // Add auth
+    if (camera.source === 'ha') {
+      const haToken = integrations?.homeAssistant?.token;
+      if (haToken) pUrl += `&token=${encodeURIComponent(haToken)}`;
+    } else if (camera.source === 'scrypted' && camera.scryptedId) {
+      const token = camera.token || scryptedConfig?.token;
+      if (token?.startsWith('cookie:')) pUrl += `&cookie=${encodeURIComponent(token.replace('cookie:', ''))}`;
+      else if (token) pUrl += `&token=${encodeURIComponent(token)}`;
+    }
+    return pUrl;
+  }, [camera, integrations, scryptedConfig]);
+
+  // Double-buffered live polling — fetch next frame while showing current
   useEffect(() => {
     if (!isLive) {
-      if (liveTimerRef.current) clearInterval(liveTimerRef.current);
+      liveRunningRef.current = false;
       return;
     }
-    liveTimerRef.current = setInterval(() => {
-      setLiveKey(k => k + 1);
-    }, 500);
-    return () => { if (liveTimerRef.current) clearInterval(liveTimerRef.current); };
-  }, [isLive]);
 
-  // Reset live mode when switching cameras
+    liveRunningRef.current = true;
+    let frameCount = 0;
+    let fpsStart = performance.now();
+
+    const fetchNextFrame = async () => {
+      if (!liveRunningRef.current) return;
+
+      const rawUrl = getRawSnapshotUrl(camera);
+      if (!rawUrl) return;
+
+      // Use direct URL for local cameras (faster), proxy for remote
+      const baseUrl = isLocalUrl(rawUrl) ? rawUrl : proxyUrl(rawUrl);
+      if (!baseUrl) return;
+
+      const cacheBuster = `_=${Date.now()}&r=${Math.random()}`;
+      const frameUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}${cacheBuster}`;
+
+      try {
+        // Preload in hidden buffer
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+          img.src = frameUrl;
+        });
+
+        if (!liveRunningRef.current) return;
+
+        // Swap to visible
+        if (visibleImgRef.current) {
+          visibleImgRef.current.src = frameUrl;
+          setImgLoaded(true);
+        }
+
+        // FPS counter
+        frameCount++;
+        const elapsed = performance.now() - fpsStart;
+        if (elapsed >= 1000) {
+          setFps(Math.round(frameCount * 1000 / elapsed));
+          frameCount = 0;
+          fpsStart = performance.now();
+        }
+      } catch {
+        // Frame failed, skip and try again
+      }
+
+      // Schedule next frame immediately (as fast as possible)
+      if (liveRunningRef.current) {
+        requestAnimationFrame(() => setTimeout(fetchNextFrame, 50)); // ~50ms min gap
+      }
+    };
+
+    fetchNextFrame();
+
+    return () => { liveRunningRef.current = false; };
+  }, [isLive, activeCamId, camera, getRawSnapshotUrl, proxyUrl]);
+
+  // Get initial snapshot URL (with proxy, for non-live display)
+  const getSnapshotUrl = () => {
+    const rawUrl = getRawSnapshotUrl(camera);
+    if (!rawUrl) return null;
+    const pUrl = proxyUrl(rawUrl);
+    return `${pUrl}${pUrl.includes('?') ? '&' : '?'}_=${Date.now()}`;
+  };
+
+  // Reset when switching cameras
   useEffect(() => {
     setImgLoaded(false);
+    setFps(0);
   }, [activeCamId]);
 
   const goPrev = () => {
@@ -68,66 +184,7 @@ function CameraModal({ cameras, initialCameraId, haBaseUrl, scryptedConfig, inte
     touchStartRef.current = null;
   };
 
-  // Build the stream URL for modal (supports live fast-polling or MJPEG)
-  const getModalStreamUrl = () => {
-    const useMjpeg = isLive && camera.streamType !== 'hls';
-
-    // HA cameras
-    if (camera.source === 'ha') {
-      if (!haBaseUrl) return null;
-      if (useMjpeg && camera.entityId) {
-        const mjpegUrl = `${haBaseUrl}/api/camera_proxy_stream/${camera.entityId}`;
-        let proxyUrl = `/api/proxy?url=${encodeURIComponent(mjpegUrl)}`;
-        const haToken = integrations?.homeAssistant?.token;
-        if (haToken) proxyUrl += `&token=${encodeURIComponent(haToken)}`;
-        return proxyUrl;
-      }
-      if (!camera.entityPicture) return null;
-      const baseUrl = camera.entityPicture.startsWith('http')
-        ? camera.entityPicture
-        : `${haBaseUrl}${camera.entityPicture}`;
-      return `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}_=${liveKey}`;
-    }
-
-    // Scrypted cameras
-    if (camera.source === 'scrypted') {
-      let streamUrl;
-      if (camera.webhookUrl) {
-        streamUrl = camera.webhookUrl;
-        if (useMjpeg && !streamUrl.includes('/getVideoStream')) {
-          streamUrl = streamUrl.replace(/\/$/, '') + '/getVideoStream';
-        }
-        streamUrl = `/api/proxy?url=${encodeURIComponent(streamUrl)}`;
-      } else if (camera.scryptedId) {
-        const baseUrl = scryptedConfig?.url?.replace(/\/$/, '');
-        if (!baseUrl) return null;
-        const token = camera.token || scryptedConfig?.token;
-        const deviceId = camera.scryptedId;
-        if (useMjpeg) {
-          streamUrl = `${baseUrl}/endpoint/@scrypted/nvr/public/${deviceId}/channel/0/mjpeg`;
-        } else {
-          streamUrl = `${baseUrl}/endpoint/@scrypted/nvr/public/thumbnail/${deviceId}.jpg`;
-        }
-        let proxyUrl = `/api/proxy?url=${encodeURIComponent(streamUrl)}`;
-        if (token?.startsWith('cookie:')) proxyUrl += `&cookie=${encodeURIComponent(token.replace('cookie:', ''))}`;
-        else if (token) proxyUrl += `&token=${encodeURIComponent(token)}`;
-        if (!useMjpeg) proxyUrl += `&_=${liveKey}`;
-        return proxyUrl;
-      }
-      if (!useMjpeg && streamUrl) {
-        streamUrl += `${streamUrl.includes('?') ? '&' : '?'}_=${liveKey}`;
-      }
-      return streamUrl;
-    }
-
-    // Direct URL
-    if (!camera.url) return null;
-    let finalUrl = `/api/proxy?url=${encodeURIComponent(camera.url)}`;
-    if (!useMjpeg) finalUrl += `${finalUrl.includes('?') ? '&' : '?'}_=${liveKey}`;
-    return finalUrl;
-  };
-
-  const streamUrl = getModalStreamUrl();
+  const snapshotUrl = !isLive ? getSnapshotUrl() : null;
 
   return (
     <div
@@ -156,6 +213,11 @@ function CameraModal({ cameras, initialCameraId, haBaseUrl, scryptedConfig, inte
               LIVE
             </span>
           )}
+          {isLive && fps > 0 && (
+            <span style={{ fontSize: '9px', color: 'rgba(255,255,255,0.4)', fontFamily: 'monospace' }}>
+              {fps} fps
+            </span>
+          )}
         </div>
         <button
           onClick={() => { vibrate(); onClose(); }}
@@ -171,10 +233,27 @@ function CameraModal({ cameras, initialCameraId, haBaseUrl, scryptedConfig, inte
 
       {/* Camera image */}
       <div style={{ position: 'relative', maxWidth: '95vw', maxHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        {streamUrl ? (
+        {/* Live mode: single img element updated by the polling loop */}
+        {isLive ? (
           <>
             <img
-              src={streamUrl}
+              ref={visibleImgRef}
+              alt={camera.name}
+              style={{
+                maxWidth: '95vw', maxHeight: '80vh', objectFit: 'contain',
+                borderRadius: '12px', display: imgLoaded ? 'block' : 'none'
+              }}
+            />
+            {!imgLoaded && (
+              <div style={{ width: '300px', height: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Loader2 size={32} style={{ animation: 'spin 1s linear infinite', color: 'var(--accent-primary)' }} />
+              </div>
+            )}
+          </>
+        ) : snapshotUrl ? (
+          <>
+            <img
+              src={snapshotUrl}
               alt={camera.name}
               onLoad={() => setImgLoaded(true)}
               onError={() => {}}
@@ -199,10 +278,10 @@ function CameraModal({ cameras, initialCameraId, haBaseUrl, scryptedConfig, inte
             <button
               onClick={(e) => { e.stopPropagation(); goPrev(); }}
               style={{
-                position: 'absolute', left: '-50px', top: '50%', transform: 'translateY(-50%)',
-                background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%',
+                position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)',
+                background: 'rgba(0,0,0,0.5)', border: 'none', borderRadius: '50%',
                 width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                cursor: 'pointer', color: '#fff'
+                cursor: 'pointer', color: '#fff', backdropFilter: 'blur(4px)'
               }}
             >
               <ChevronLeft size={20} />
@@ -210,10 +289,10 @@ function CameraModal({ cameras, initialCameraId, haBaseUrl, scryptedConfig, inte
             <button
               onClick={(e) => { e.stopPropagation(); goNext(); }}
               style={{
-                position: 'absolute', right: '-50px', top: '50%', transform: 'translateY(-50%)',
-                background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%',
+                position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)',
+                background: 'rgba(0,0,0,0.5)', border: 'none', borderRadius: '50%',
                 width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                cursor: 'pointer', color: '#fff'
+                cursor: 'pointer', color: '#fff', backdropFilter: 'blur(4px)'
               }}
             >
               <ChevronRight size={20} />
@@ -229,7 +308,7 @@ function CameraModal({ cameras, initialCameraId, haBaseUrl, scryptedConfig, inte
       }}>
         {/* Live toggle */}
         <button
-          onClick={(e) => { e.stopPropagation(); vibrate(30); setIsLive(!isLive); }}
+          onClick={(e) => { e.stopPropagation(); vibrate(30); setIsLive(!isLive); setImgLoaded(false); }}
           style={{
             display: 'flex', alignItems: 'center', gap: '6px',
             padding: '10px 20px',
