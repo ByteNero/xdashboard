@@ -171,8 +171,14 @@ export default function Display() {
     ? `${settings.panelHeight}px`
     : '100vh';
 
+  // UI scale for small/large screens
+  const uiScale = settings.uiScale ? parseFloat(settings.uiScale) : 1;
+
   return (
-    <div ref={containerRef} className="display-container" style={{ '--dashboard-height': dashboardHeight }}>
+    <div ref={containerRef} className="display-container" style={{
+      '--dashboard-height': dashboardHeight,
+      ...(uiScale !== 1 ? { zoom: uiScale } : {})
+    }}>
       {enabledPanels.map((panel) => {
         const PanelComponent = panelComponents[panel.type];
         if (!PanelComponent) {

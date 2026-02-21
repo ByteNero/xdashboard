@@ -3069,6 +3069,38 @@ export default function Setup() {
                   ))}
                 </div>
               </div>
+
+              <div>
+                <div style={{ fontWeight: '500', marginBottom: '4px' }}>UI Scale</div>
+                <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '12px' }}>Scale up the dashboard text and elements for smaller screens. Default is 100%.</div>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {[
+                    { label: '100%', value: '1' },
+                    { label: '110%', value: '1.1' },
+                    { label: '120%', value: '1.2' },
+                    { label: '130%', value: '1.3' },
+                    { label: '140%', value: '1.4' },
+                    { label: '150%', value: '1.5' }
+                  ].map(opt => (
+                    <button
+                      key={opt.value}
+                      onClick={() => updateSettings({ uiScale: opt.value })}
+                      style={{
+                        padding: '8px 16px',
+                        borderRadius: '8px',
+                        border: `1px solid ${(settings.uiScale || '1') === opt.value ? 'var(--accent-primary)' : 'var(--border-color)'}`,
+                        background: (settings.uiScale || '1') === opt.value ? 'var(--accent-glow)' : 'var(--bg-card)',
+                        color: (settings.uiScale || '1') === opt.value ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                        cursor: 'pointer',
+                        fontSize: '13px',
+                        fontWeight: '500'
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
             <h3>Sync & Backup</h3>

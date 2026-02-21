@@ -191,62 +191,8 @@ class UniFiService {
     return data.data || data;
   }
 
-  async runSpeedTest() {
-    if (!this.connected) throw new Error('Not connected');
-    console.log('[UniFi] Triggering speed test...');
-    await this._post(`api/s/${this.site}/cmd/devmgr`, { cmd: 'speedtest' });
-    return { started: true };
-  }
-
-  async getSpeedTestStatus() {
-    if (!this.connected) return null;
-    try {
-      const data = await this._post(`api/s/${this.site}/cmd/devmgr`, { cmd: 'speedtest-status' });
-      return data;
-    } catch (err) {
-      console.error('[UniFi] getSpeedTestStatus error:', err);
-      return null;
-    }
-  }
-
-  async getSpeedTestResults() {
-    if (!this.connected) return null;
-    try {
-      // Try the dedicated speed test archive endpoint first
-      const now = Date.now();
-      const dayAgo = now - 86400000;
-      const data = await this._fetch(`api/s/${this.site}/stat/report/archive.speedtest?start=${dayAgo}&end=${now}`);
-      if (data && data.length > 0) {
-        // Get most recent result
-        const latest = data.sort((a, b) => (b.time || 0) - (a.time || 0))[0];
-        return {
-          download: latest.xput_download,
-          upload: latest.xput_upload,
-          ping: latest.latency,
-          lastRun: latest.time
-        };
-      }
-    } catch (err) {
-      console.log('[UniFi] archive.speedtest not available, trying health endpoint');
-    }
-
-    // Fallback: check health endpoint fields
-    try {
-      const data = await this._fetch(`api/s/${this.site}/stat/health`);
-      const wan = (data || []).find(s => s.subsystem === 'wan');
-      if (wan && (wan.xput_down || wan.xput_download)) {
-        return {
-          download: wan.xput_download || wan.xput_down,
-          upload: wan.xput_upload || wan.xput_up,
-          ping: wan.latency || wan.speedtest_ping,
-          lastRun: wan.speedtest_lastrun
-        };
-      }
-    } catch (err) {
-      console.error('[UniFi] getSpeedTestResults fallback error:', err);
-    }
-    return null;
-  }
+  // Speed test methods removed — speed test is now handled directly in the panel
+  // using Cloudflare's speed test endpoints (works regardless of auth method)
 
   async fetchAll() {
     try {

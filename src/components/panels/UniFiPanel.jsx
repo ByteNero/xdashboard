@@ -183,7 +183,7 @@ const DeviceCard = ({ device }) => {
 // ========================
 // WAN Overview Component
 // ========================
-const WanOverview = ({ health, onSpeedTest, speedTestRunning }) => {
+const WanOverview = ({ health, onSpeedTest, speedTestRunning, speedTestError, speedTestResults, speedTestProgress }) => {
   const wan = health?.wan;
   const wlan = health?.wlan;
   const lan = health?.lan;
@@ -268,61 +268,94 @@ const WanOverview = ({ health, onSpeedTest, speedTestRunning }) => {
       </div>
 
       {/* Speed Test */}
-      <div style={{ background: 'var(--bg-card)', borderRadius: '8px', padding: '10px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: (wan.speedtestDown || wan.speedtestUp) ? '8px' : '0' }}>
-          <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: '600' }}>Speed Test</div>
-          <button
-            onClick={() => { vibrate(30); onSpeedTest?.(); }}
-            disabled={speedTestRunning}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '4px',
-              padding: '4px 10px',
-              background: speedTestRunning ? 'var(--bg-secondary)' : 'var(--accent-glow)',
-              border: `1px solid ${speedTestRunning ? 'var(--border-color)' : 'var(--accent-primary)'}`,
-              borderRadius: '4px',
-              color: speedTestRunning ? 'var(--text-muted)' : 'var(--accent-primary)',
-              fontSize: '10px', fontWeight: '600',
-              cursor: speedTestRunning ? 'not-allowed' : 'pointer',
-              fontFamily: 'inherit'
-            }}
-          >
-            {speedTestRunning ? (
-              <><Loader2 size={10} style={{ animation: 'spin 1s linear infinite' }} /> Running...</>
-            ) : (
-              <><Zap size={10} /> Run Test</>
-            )}
-          </button>
-        </div>
-        {(wan.speedtestDown || wan.speedtestUp) ? (
-          <div style={{ display: 'flex', justifyContent: 'space-around', fontSize: '11px' }}>
-            {wan.speedtestDown != null && (
-              <div style={{ textAlign: 'center' }}>
-                <ArrowDown size={10} style={{ color: '#22c55e', marginBottom: '2px' }} />
-                <div style={{ fontWeight: '700', color: '#22c55e', fontSize: '13px' }}>{wan.speedtestDown.toFixed(1)}</div>
-                <div style={{ fontSize: '9px', color: 'var(--text-muted)' }}>Mbps Down</div>
+      {(() => {
+        const hasResults = speedTestResults && (speedTestResults.download || speedTestResults.upload);
+        const phaseLabels = { ping: 'Testing Ping...', download: 'Testing Download...', upload: 'Testing Upload...' };
+
+        return (
+          <div style={{ background: 'var(--bg-card)', borderRadius: '8px', padding: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: (hasResults || speedTestRunning || speedTestError) ? '8px' : '0' }}>
+              <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: '600' }}>Speed Test</div>
+              <button
+                onClick={() => { vibrate(30); onSpeedTest?.(); }}
+                disabled={speedTestRunning}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '4px',
+                  padding: '4px 10px',
+                  background: speedTestRunning ? 'var(--bg-secondary)' : 'var(--accent-glow)',
+                  border: `1px solid ${speedTestRunning ? 'var(--border-color)' : 'var(--accent-primary)'}`,
+                  borderRadius: '4px',
+                  color: speedTestRunning ? 'var(--text-muted)' : 'var(--accent-primary)',
+                  fontSize: '10px', fontWeight: '600',
+                  cursor: speedTestRunning ? 'not-allowed' : 'pointer',
+                  fontFamily: 'inherit'
+                }}
+              >
+                {speedTestRunning ? (
+                  <><Loader2 size={10} style={{ animation: 'spin 1s linear infinite' }} /> {phaseLabels[speedTestProgress?.phase] || 'Running...'}</>
+                ) : (
+                  <><Zap size={10} /> Run Test</>
+                )}
+              </button>
+            </div>
+            {speedTestError && (
+              <div style={{ fontSize: '10px', color: 'var(--danger)', padding: '4px 8px', marginBottom: hasResults ? '6px' : '0', background: 'rgba(239,68,68,0.1)', borderRadius: '4px' }}>
+                {speedTestError}
               </div>
             )}
-            {wan.speedtestUp != null && (
-              <div style={{ textAlign: 'center' }}>
-                <ArrowUp size={10} style={{ color: '#3b82f6', marginBottom: '2px' }} />
-                <div style={{ fontWeight: '700', color: '#3b82f6', fontSize: '13px' }}>{wan.speedtestUp.toFixed(1)}</div>
-                <div style={{ fontSize: '9px', color: 'var(--text-muted)' }}>Mbps Up</div>
+            {/* Live progress while running */}
+            {speedTestRunning && speedTestProgress && (
+              <div style={{ display: 'flex', justifyContent: 'space-around', fontSize: '11px', opacity: 0.7 }}>
+                {speedTestProgress.phase === 'ping' && speedTestProgress.value > 0 && (
+                  <div style={{ textAlign: 'center' }}>
+                    <Signal size={10} style={{ color: 'var(--accent-primary)', marginBottom: '2px' }} />
+                    <div style={{ fontWeight: '700', color: 'var(--text-primary)', fontSize: '13px' }}>{Math.round(speedTestProgress.value)}</div>
+                    <div style={{ fontSize: '9px', color: 'var(--text-muted)' }}>ms Ping</div>
+                  </div>
+                )}
+                {(speedTestProgress.phase === 'download' || speedTestProgress.phase === 'upload') && speedTestProgress.value > 0 && (
+                  <div style={{ textAlign: 'center' }}>
+                    {speedTestProgress.phase === 'download'
+                      ? <ArrowDown size={10} style={{ color: '#22c55e', marginBottom: '2px' }} />
+                      : <ArrowUp size={10} style={{ color: '#3b82f6', marginBottom: '2px' }} />
+                    }
+                    <div style={{ fontWeight: '700', color: speedTestProgress.phase === 'download' ? '#22c55e' : '#3b82f6', fontSize: '13px' }}>
+                      {speedTestProgress.value.toFixed(1)}
+                    </div>
+                    <div style={{ fontSize: '9px', color: 'var(--text-muted)' }}>Mbps {speedTestProgress.phase === 'download' ? 'Down' : 'Up'}</div>
+                  </div>
+                )}
               </div>
             )}
-            {wan.speedtestPing != null && (
-              <div style={{ textAlign: 'center' }}>
-                <Signal size={10} style={{ color: 'var(--accent-primary)', marginBottom: '2px' }} />
-                <div style={{ fontWeight: '700', color: 'var(--text-primary)', fontSize: '13px' }}>{wan.speedtestPing}</div>
-                <div style={{ fontSize: '9px', color: 'var(--text-muted)' }}>ms Ping</div>
+            {/* Final results */}
+            {!speedTestRunning && hasResults ? (
+              <div style={{ display: 'flex', justifyContent: 'space-around', fontSize: '11px' }}>
+                <div style={{ textAlign: 'center' }}>
+                  <ArrowDown size={10} style={{ color: '#22c55e', marginBottom: '2px' }} />
+                  <div style={{ fontWeight: '700', color: '#22c55e', fontSize: '13px' }}>{speedTestResults.download.toFixed(1)}</div>
+                  <div style={{ fontSize: '9px', color: 'var(--text-muted)' }}>Mbps Down</div>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <ArrowUp size={10} style={{ color: '#3b82f6', marginBottom: '2px' }} />
+                  <div style={{ fontWeight: '700', color: '#3b82f6', fontSize: '13px' }}>{speedTestResults.upload.toFixed(1)}</div>
+                  <div style={{ fontSize: '9px', color: 'var(--text-muted)' }}>Mbps Up</div>
+                </div>
+                {speedTestResults.ping > 0 && (
+                  <div style={{ textAlign: 'center' }}>
+                    <Signal size={10} style={{ color: 'var(--accent-primary)', marginBottom: '2px' }} />
+                    <div style={{ fontWeight: '700', color: 'var(--text-primary)', fontSize: '13px' }}>{Math.round(speedTestResults.ping)}</div>
+                    <div style={{ fontSize: '9px', color: 'var(--text-muted)' }}>ms Ping</div>
+                  </div>
+                )}
               </div>
-            )}
+            ) : !speedTestRunning && !speedTestError && !hasResults ? (
+              <div style={{ textAlign: 'center', fontSize: '10px', color: 'var(--text-muted)', padding: '4px 0' }}>
+                No results yet — run a test
+              </div>
+            ) : null}
           </div>
-        ) : !speedTestRunning ? (
-          <div style={{ textAlign: 'center', fontSize: '10px', color: 'var(--text-muted)', padding: '4px 0' }}>
-            No results yet — run a test
-          </div>
-        ) : null}
-      </div>
+        );
+      })()}
 
       {/* Gateway CPU/Memory */}
       {(wan.cpu != null || wan.mem != null) && (
@@ -366,6 +399,104 @@ const WanOverview = ({ health, onSpeedTest, speedTestRunning }) => {
 // ========================
 // Main Panel Component
 // ========================
+// ========================
+// Browser-based Speed Test
+// Downloads/uploads to Cloudflare's speed test CDN
+// ========================
+const runBrowserSpeedTest = (onProgress) => {
+  return new Promise(async (resolve) => {
+    const results = { download: 0, upload: 0, ping: 0 };
+
+    try {
+      // 1. Ping test (multiple samples)
+      onProgress?.({ phase: 'ping', value: 0 });
+      const pings = [];
+      for (let i = 0; i < 5; i++) {
+        const start = performance.now();
+        try {
+          await fetch(`https://speed.cloudflare.com/__down?bytes=0&_=${Date.now()}`, {
+            cache: 'no-store', mode: 'cors'
+          });
+          pings.push(performance.now() - start);
+        } catch { /* skip failed ping */ }
+      }
+      if (pings.length > 0) {
+        pings.sort((a, b) => a - b);
+        // Use median ping
+        results.ping = pings[Math.floor(pings.length / 2)];
+      }
+      onProgress?.({ phase: 'ping', value: results.ping });
+
+      // 2. Download test — progressively larger chunks
+      onProgress?.({ phase: 'download', value: 0 });
+      const dlSizes = [100000, 500000, 1000000, 5000000, 10000000]; // 100KB → 10MB
+      let totalDlBytes = 0;
+      let totalDlTime = 0;
+
+      for (const size of dlSizes) {
+        const start = performance.now();
+        try {
+          const resp = await fetch(`https://speed.cloudflare.com/__down?bytes=${size}&_=${Date.now()}`, {
+            cache: 'no-store', mode: 'cors'
+          });
+          const blob = await resp.blob();
+          const elapsed = (performance.now() - start) / 1000; // seconds
+          totalDlBytes += blob.size;
+          totalDlTime += elapsed;
+          const currentMbps = (totalDlBytes * 8) / (totalDlTime * 1000000);
+          onProgress?.({ phase: 'download', value: currentMbps });
+        } catch (e) {
+          console.log('[SpeedTest] Download chunk failed:', e.message);
+        }
+        // Stop early if we have enough data (>2 seconds of test)
+        if (totalDlTime > 3) break;
+      }
+      results.download = totalDlTime > 0 ? (totalDlBytes * 8) / (totalDlTime * 1000000) : 0;
+
+      // 3. Upload test — generate random data and POST it
+      onProgress?.({ phase: 'upload', value: 0 });
+      const ulSizes = [100000, 500000, 1000000, 2000000];
+      let totalUlBytes = 0;
+      let totalUlTime = 0;
+
+      for (const size of ulSizes) {
+        const payload = new Uint8Array(size);
+        // Fill with random-ish data (faster than crypto.getRandomValues for large buffers)
+        for (let i = 0; i < size; i += 4) {
+          const v = (Math.random() * 0xFFFFFFFF) >>> 0;
+          payload[i] = v & 0xFF;
+          if (i + 1 < size) payload[i + 1] = (v >> 8) & 0xFF;
+          if (i + 2 < size) payload[i + 2] = (v >> 16) & 0xFF;
+          if (i + 3 < size) payload[i + 3] = (v >> 24) & 0xFF;
+        }
+        const start = performance.now();
+        try {
+          await fetch(`https://speed.cloudflare.com/__up`, {
+            method: 'POST',
+            body: payload,
+            cache: 'no-store',
+            mode: 'cors'
+          });
+          const elapsed = (performance.now() - start) / 1000;
+          totalUlBytes += size;
+          totalUlTime += elapsed;
+          const currentMbps = (totalUlBytes * 8) / (totalUlTime * 1000000);
+          onProgress?.({ phase: 'upload', value: currentMbps });
+        } catch (e) {
+          console.log('[SpeedTest] Upload chunk failed:', e.message);
+        }
+        if (totalUlTime > 3) break;
+      }
+      results.upload = totalUlTime > 0 ? (totalUlBytes * 8) / (totalUlTime * 1000000) : 0;
+
+    } catch (err) {
+      console.error('[SpeedTest] Error:', err);
+    }
+
+    resolve(results);
+  });
+};
+
 export default function UniFiPanel({ config }) {
   const [data, setData] = useState({ devices: [], clients: [], health: null });
   const { connectionStatus, settings, integrations, connectUnifi } = useDashboardStore();
@@ -373,6 +504,9 @@ export default function UniFiPanel({ config }) {
   const [activeTab, setActiveTab] = useState('clients');
   const [currentPage, setCurrentPage] = useState({ clients: 0, devices: 0, wan: 0 });
   const [speedTestRunning, setSpeedTestRunning] = useState(false);
+  const [speedTestProgress, setSpeedTestProgress] = useState(null); // { phase, value }
+  const [speedTestResults, setSpeedTestResults] = useState(null); // { download, upload, ping }
+  const [speedTestError, setSpeedTestError] = useState(null);
   const reconnectAttemptRef = useState(false);
 
   const language = settings?.language || 'en-GB';
@@ -474,37 +608,20 @@ export default function UniFiPanel({ config }) {
   };
 
   const handleSpeedTest = async () => {
-    if (speedTestRunning || !unifi.isConnected()) return;
+    if (speedTestRunning) return;
     setSpeedTestRunning(true);
-    try {
-      await unifi.runSpeedTest();
-      // Poll for results every 5s for up to 90s
-      let attempts = 0;
-      const initialResults = await unifi.getSpeedTestResults();
-      const initialTime = initialResults?.lastRun || 0;
+    setSpeedTestError(null);
+    setSpeedTestProgress(null);
 
-      const poll = setInterval(async () => {
-        attempts++;
-        try {
-          const results = await unifi.getSpeedTestResults();
-          // Check if we got NEW results (different timestamp) or any results at all
-          const hasNewResults = results?.download && results.lastRun !== initialTime;
-          if (hasNewResults || attempts >= 18) {
-            clearInterval(poll);
-            setSpeedTestRunning(false);
-            unifi.fetchAll();
-          }
-        } catch {
-          // Keep polling even on errors
-          if (attempts >= 18) {
-            clearInterval(poll);
-            setSpeedTestRunning(false);
-            unifi.fetchAll();
-          }
-        }
-      }, 5000);
+    try {
+      const results = await runBrowserSpeedTest((progress) => {
+        setSpeedTestProgress(progress);
+      });
+      setSpeedTestResults(results);
+      setSpeedTestRunning(false);
     } catch (err) {
-      console.error('[UniFi] Speed test error:', err);
+      console.error('[SpeedTest] Error:', err);
+      setSpeedTestError(err.message || 'Speed test failed');
       setSpeedTestRunning(false);
     }
   };
@@ -627,7 +744,7 @@ export default function UniFiPanel({ config }) {
 
         {/* WAN Tab */}
         {activeTab === 'wan' && (
-          <WanOverview health={data.health} onSpeedTest={handleSpeedTest} speedTestRunning={speedTestRunning} />
+          <WanOverview health={data.health} onSpeedTest={handleSpeedTest} speedTestRunning={speedTestRunning} speedTestError={speedTestError} speedTestResults={speedTestResults} speedTestProgress={speedTestProgress} />
         )}
       </div>
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
