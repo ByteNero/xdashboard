@@ -210,7 +210,7 @@ const AddToLibraryButton = ({ item, arrConfig, tmdbApiKey, onAdded }) => {
 
       } else {
         // Add to Sonarr - need to get TVDB ID first
-        const extRes = await fetch(`https://api.themoviedb.org/3/tv/${item.id}/external_ids?api_key=${tmdbApiKey}`);
+        const extRes = await fetch(`/api/proxy?url=${encodeURIComponent(`https://api.themoviedb.org/3/tv/${item.id}/external_ids?api_key=${tmdbApiKey}`)}`);
         if (!extRes.ok) throw new Error('Failed to get TVDB ID');
         const extIds = await extRes.json();
 
@@ -634,7 +634,7 @@ export default function PosterPanel({ config }) {
           for (const item of checkedItems) {
             if (item.media_type === 'tv' && tmdbApiKey) {
               try {
-                const extRes = await fetch(`https://api.themoviedb.org/3/tv/${item.id}/external_ids?api_key=${tmdbApiKey}`);
+                const extRes = await fetch(`/api/proxy?url=${encodeURIComponent(`https://api.themoviedb.org/3/tv/${item.id}/external_ids?api_key=${tmdbApiKey}`)}`);
                 if (extRes.ok) {
                   const extIds = await extRes.json();
                   if (tvdbIds.has(extIds.tvdb_id)) {
@@ -702,7 +702,7 @@ export default function PosterPanel({ config }) {
         if (!movie.ids?.tmdb) continue;
 
         try {
-          const tmdbRes = await fetch(`https://api.themoviedb.org/3/movie/${movie.ids.tmdb}?api_key=${tmdbApiKey}`);
+          const tmdbRes = await fetch(`/api/proxy?url=${encodeURIComponent(`https://api.themoviedb.org/3/movie/${movie.ids.tmdb}?api_key=${tmdbApiKey}`)}`);
           if (tmdbRes.ok) {
             const tmdbData = await tmdbRes.json();
             items.push({
@@ -767,7 +767,7 @@ export default function PosterPanel({ config }) {
         }
 
         try {
-          const res = await fetch(url);
+          const res = await fetch(`/api/proxy?url=${encodeURIComponent(url)}`);
           if (res.ok) {
             const data = await res.json();
             const results = (data.results || []).map(item => ({

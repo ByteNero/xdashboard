@@ -568,7 +568,7 @@ export const useDashboardStore = create(
             tmdb: { connected: false, error: null, connecting: true }
           });
 
-          const response = await fetch(`https://api.themoviedb.org/3/configuration?api_key=${apiKey}`);
+          const response = await fetch(`/api/proxy?url=${encodeURIComponent(`https://api.themoviedb.org/3/configuration?api_key=${apiKey}`)}`);
 
           if (!response.ok) {
             if (response.status === 401) {

@@ -2735,7 +2735,12 @@ export default function Setup() {
                       <div className="panel-name">{panel.title}</div>
                       <div className="panel-type">{panel.type}</div>
                     </div>
-                    <div className={`toggle-switch ${panel.enabled ? 'active' : ''}`} onClick={() => togglePanel(panel.id)} />
+                    <div className={`toggle-switch ${panel.enabled ? 'active' : ''}`}
+                      onClick={(e) => { e.stopPropagation(); togglePanel(panel.id); }}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      draggable={false}
+                    />
                   </div>
                 );
               })}

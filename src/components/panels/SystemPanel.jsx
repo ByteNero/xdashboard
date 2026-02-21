@@ -203,7 +203,7 @@ export default function SystemPanel({ config }) {
 
       await Promise.all(systemsArray.map(async (sys) => {
         try {
-          const response = await fetch(sys.apiUrl);
+          const response = await fetch(`/api/proxy?url=${encodeURIComponent(sys.apiUrl)}`);
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
           let data = await response.json();
 
@@ -215,7 +215,7 @@ export default function SystemPanel({ config }) {
             const endpoints = ['fs', 'mem', 'percpu', 'network', 'sensors', 'load', 'processcount'];
             const fetches = endpoints.map(async (endpoint) => {
               try {
-                const res = await fetch(`${baseUrl}/api/${apiVersion}/${endpoint}`);
+                const res = await fetch(`/api/proxy?url=${encodeURIComponent(`${baseUrl}/api/${apiVersion}/${endpoint}`)}`);
                 if (res.ok) return { endpoint, data: await res.json() };
               } catch (e) {}
               return null;

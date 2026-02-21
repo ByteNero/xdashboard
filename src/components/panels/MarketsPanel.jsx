@@ -237,7 +237,7 @@ export default function MarketsPanel({ config }) {
       const ids = watchlist.join(',');
       const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=${currency}&ids=${ids}&order=market_cap_desc&sparkline=true&price_change_percentage=24h`;
 
-      const response = await fetch(url);
+      const response = await fetch(`/api/proxy?url=${encodeURIComponent(url)}`);
       if (!response.ok) {
         if (response.status === 429) {
           throw new Error('Rate limited - try again in a minute');
@@ -267,7 +267,7 @@ export default function MarketsPanel({ config }) {
   // Fetch global market stats
   const fetchMarketStats = useCallback(async () => {
     try {
-      const response = await fetch('https://api.coingecko.com/api/v3/global');
+      const response = await fetch(`/api/proxy?url=${encodeURIComponent('https://api.coingecko.com/api/v3/global')}`);
       if (!response.ok) return null;
 
       const data = await response.json();
@@ -295,7 +295,7 @@ export default function MarketsPanel({ config }) {
     for (const asset of stockAssets) {
       try {
         const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${asset.symbol}&apikey=${apiKey}`;
-        const response = await fetch(url);
+        const response = await fetch(`/api/proxy?url=${encodeURIComponent(url)}`);
         const data = await response.json();
 
         if (data['Global Quote']) {

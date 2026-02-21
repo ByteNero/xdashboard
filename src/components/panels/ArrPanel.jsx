@@ -270,7 +270,6 @@ export default function ArrPanel({ config }) {
     try {
       let items = [];
       const baseUrl = cfg.url.replace(/\/$/, '');
-      const headers = { 'X-Api-Key': cfg.apiKey };
 
       if (service === 'overseerr') {
         // Fetch requests - use proxy in dev mode to bypass CORS
@@ -371,8 +370,8 @@ export default function ArrPanel({ config }) {
           throw e;
         }
       } else if (service === 'radarr') {
-        // Fetch movies
-        const moviesRes = await fetch(`${baseUrl}/api/v3/movie`, { headers });
+        // Fetch movies via proxy for CORS support
+        const moviesRes = await fetch(`/api/proxy?url=${encodeURIComponent(`${baseUrl}/api/v3/movie`)}&apiKey=${encodeURIComponent(cfg.apiKey)}`);
         const movies = moviesRes.ok ? await moviesRes.json() : [];
 
         const now = new Date();
@@ -418,11 +417,11 @@ export default function ArrPanel({ config }) {
         }));
         return;
       } else if (service === 'sonarr') {
-        // Fetch series, history, and wanted/missing
+        // Fetch series, history, and wanted/missing via proxy for CORS support
         const [seriesRes, historyRes, wantedRes] = await Promise.all([
-          fetch(`${baseUrl}/api/v3/series`, { headers }),
-          fetch(`${baseUrl}/api/v3/history?pageSize=30&sortKey=date&sortDirection=descending&includeSeries=true&includeEpisode=true`, { headers }),
-          fetch(`${baseUrl}/api/v3/wanted/missing?pageSize=15&sortKey=airDateUtc&sortDirection=descending&includeSeries=true`, { headers })
+          fetch(`/api/proxy?url=${encodeURIComponent(`${baseUrl}/api/v3/series`)}&apiKey=${encodeURIComponent(cfg.apiKey)}`),
+          fetch(`/api/proxy?url=${encodeURIComponent(`${baseUrl}/api/v3/history?pageSize=30&sortKey=date&sortDirection=descending&includeSeries=true&includeEpisode=true`)}&apiKey=${encodeURIComponent(cfg.apiKey)}`),
+          fetch(`/api/proxy?url=${encodeURIComponent(`${baseUrl}/api/v3/wanted/missing?pageSize=15&sortKey=airDateUtc&sortDirection=descending&includeSeries=true`)}&apiKey=${encodeURIComponent(cfg.apiKey)}`)
         ]);
 
         const series = seriesRes.ok ? await seriesRes.json() : [];
@@ -486,8 +485,8 @@ export default function ArrPanel({ config }) {
         }));
         return;
       } else if (service === 'readarr') {
-        // Fetch recently added books
-        const res = await fetch(`${baseUrl}/api/v1/book?sortKey=added&sortDirection=descending`, { headers });
+        // Fetch recently added books via proxy for CORS support
+        const res = await fetch(`/api/proxy?url=${encodeURIComponent(`${baseUrl}/api/v1/book?sortKey=added&sortDirection=descending`)}&apiKey=${encodeURIComponent(cfg.apiKey)}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const books = await res.json();
 

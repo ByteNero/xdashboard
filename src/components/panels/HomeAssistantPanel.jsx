@@ -9,7 +9,7 @@ const iconMap = { Lightbulb, Bed, ChefHat, Lock, Thermometer, Tv, DoorOpen, Fan,
 const LONG_PRESS_DURATION = 500; // ms
 
 export default function HomeAssistantPanel({ config }) {
-  const { settings } = useDashboardStore();
+  const { settings, integrations, connectHomeAssistant } = useDashboardStore();
 
   // Dynamic items per page based on panel height (3 columns × rows that fit)
   const panelH = settings?.panelHeight && settings.panelHeight !== 'auto'
@@ -26,22 +26,34 @@ export default function HomeAssistantPanel({ config }) {
   const [brightness, setBrightness] = useState(100);
   const longPressTimer = useRef(null);
   const isLongPress = useRef(false);
+  const reconnectAttemptRef = useRef(false);
   const entities = config?.entities || [];
 
   const totalPages = Math.ceil(entities.length / ITEMS_PER_PAGE);
   const paginatedEntities = entities.slice(currentPage * ITEMS_PER_PAGE, (currentPage + 1) * ITEMS_PER_PAGE);
 
-  // Poll connection status from the actual service
+  // Poll connection status and auto-reconnect if configured but disconnected
   useEffect(() => {
+    const haConfig = integrations?.homeAssistant;
     const checkConnection = () => {
       const connected = homeAssistant.isConnected();
       setIsConnected(connected);
+
+      // Auto-reconnect: if HA is configured+enabled but not connected, try to reconnect
+      if (!connected && haConfig?.enabled && haConfig?.url && haConfig?.token && !reconnectAttemptRef.current) {
+        reconnectAttemptRef.current = true;
+        console.log('[HA Panel] Not connected but configured — attempting reconnect...');
+        connectHomeAssistant().finally(() => {
+          // Allow another attempt after 30 seconds
+          setTimeout(() => { reconnectAttemptRef.current = false; }, 30000);
+        });
+      }
     };
 
     checkConnection();
-    const interval = setInterval(checkConnection, 500);
+    const interval = setInterval(checkConnection, 2000);
     return () => clearInterval(interval);
-  }, []);
+  }, [integrations?.homeAssistant, connectHomeAssistant]);
 
   // Load states from HA service
   const loadStates = useCallback(() => {
