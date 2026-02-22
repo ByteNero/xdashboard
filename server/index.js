@@ -8,6 +8,7 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 3001;
+const GO2RTC_URL = process.env.GO2RTC_URL || 'http://localhost:1984';
 
 // Data directory - use /data in Docker, local data/ otherwise
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
@@ -254,6 +255,117 @@ app.all('/api/proxy', async (req, res) => {
 });
 
 // ============================================
+// go2rtc Proxy — stream management + MSE/WebRTC
+// ============================================
+
+// Proxy go2rtc REST API (streams management, snapshots, etc.)
+app.all('/go2rtc/*', async (req, res) => {
+  const go2rtcPath = req.url.replace('/go2rtc', '');
+  const targetUrl = `${GO2RTC_URL}${go2rtcPath}`;
+
+  console.log(`[go2rtc] ${req.method} -> ${targetUrl}`);
+
+  try {
+    const parsed = new URL(targetUrl);
+    const client = parsed.protocol === 'https:' ? https : http;
+
+    // Forward body for POST/PUT
+    let body = null;
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      body = req.body ? Buffer.from(JSON.stringify(req.body)) : null;
+    }
+
+    const headers = { 'Content-Type': 'application/json' };
+    if (body) headers['Content-Length'] = body.length;
+
+    const proxyReq = client.request({
+      hostname: parsed.hostname,
+      port: parsed.port,
+      path: parsed.pathname + parsed.search,
+      method: req.method,
+      headers,
+      timeout: 10000
+    }, (proxyRes) => {
+      res.statusCode = proxyRes.statusCode;
+      for (const [key, value] of Object.entries(proxyRes.headers)) {
+        const lk = key.toLowerCase();
+        if (!['content-encoding', 'transfer-encoding', 'connection'].includes(lk)) {
+          try { res.setHeader(key, value); } catch (e) {}
+        }
+      }
+      res.setHeader('Access-Control-Allow-Origin', '*');
+
+      // Stream if needed (video-rtc.js, MP4 streams, etc.)
+      const ct = proxyRes.headers['content-type'] || '';
+      if (ct.includes('javascript') || ct.includes('html') || ct.includes('json') || ct.includes('text')) {
+        const chunks = [];
+        proxyRes.on('data', c => chunks.push(c));
+        proxyRes.on('end', () => res.end(Buffer.concat(chunks)));
+      } else {
+        proxyRes.pipe(res);
+        res.on('close', () => proxyRes.destroy());
+      }
+    });
+
+    proxyReq.on('error', (err) => {
+      console.error(`[go2rtc] Proxy error: ${err.message}`);
+      if (!res.headersSent) res.status(502).json({ error: err.message });
+    });
+
+    if (body) proxyReq.write(body);
+    proxyReq.end();
+  } catch (err) {
+    console.error(`[go2rtc] Error: ${err.message}`);
+    if (!res.headersSent) res.status(502).json({ error: err.message });
+  }
+});
+
+// API to add/update RTSP streams to go2rtc dynamically
+app.post('/api/go2rtc/streams', async (req, res) => {
+  const { streams } = req.body; // { "camera_name": "rtspx://...", ... }
+  if (!streams || typeof streams !== 'object') {
+    return res.status(400).json({ error: 'streams object required' });
+  }
+
+  console.log(`[go2rtc] Configuring ${Object.keys(streams).length} streams`);
+  const results = {};
+
+  for (const [name, source] of Object.entries(streams)) {
+    try {
+      // PUT /api/streams?src=NAME with body as the source URL
+      const putUrl = `${GO2RTC_URL}/api/streams?src=${encodeURIComponent(name)}`;
+      const parsed = new URL(putUrl);
+
+      await new Promise((resolve, reject) => {
+        const r = http.request({
+          hostname: parsed.hostname,
+          port: parsed.port,
+          path: parsed.pathname + parsed.search,
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          timeout: 5000
+        }, (pRes) => {
+          const chunks = [];
+          pRes.on('data', c => chunks.push(c));
+          pRes.on('end', () => {
+            results[name] = { ok: pRes.statusCode < 400, status: pRes.statusCode };
+            resolve();
+          });
+        });
+        r.on('error', (e) => { results[name] = { ok: false, error: e.message }; resolve(); });
+        r.write(JSON.stringify(source));
+        r.end();
+      });
+    } catch (e) {
+      results[name] = { ok: false, error: e.message };
+    }
+  }
+
+  console.log('[go2rtc] Stream config results:', results);
+  res.json({ results });
+});
+
+// ============================================
 // Static files (production only)
 // ============================================
 
@@ -273,7 +385,65 @@ if (fs.existsSync(distPath)) {
 // Start server
 // ============================================
 
-app.listen(PORT, '0.0.0.0', () => {
+// Create HTTP server (needed for WebSocket upgrade)
+const server = http.createServer(app);
+
+// WebSocket proxy for go2rtc — handles MSE/WebRTC streaming
+server.on('upgrade', (req, socket, head) => {
+  // Only proxy /go2rtc/api/ws paths
+  if (!req.url.startsWith('/go2rtc/')) {
+    socket.destroy();
+    return;
+  }
+
+  const go2rtcPath = req.url.replace('/go2rtc', '');
+  const parsed = new URL(`${GO2RTC_URL}${go2rtcPath}`);
+
+  console.log(`[go2rtc] WS upgrade -> ${parsed.href}`);
+
+  const proxyReq = http.request({
+    hostname: parsed.hostname,
+    port: parsed.port,
+    path: parsed.pathname + parsed.search,
+    method: 'GET',
+    headers: {
+      ...req.headers,
+      host: `${parsed.hostname}:${parsed.port}`
+    }
+  });
+
+  proxyReq.on('upgrade', (proxyRes, proxySocket, proxyHead) => {
+    // Send the 101 response back to client
+    let response = `HTTP/1.1 101 Switching Protocols\r\n`;
+    for (const [key, value] of Object.entries(proxyRes.headers)) {
+      response += `${key}: ${value}\r\n`;
+    }
+    response += '\r\n';
+    socket.write(response);
+
+    // Pipe data both ways
+    if (proxyHead.length > 0) socket.write(proxyHead);
+    if (head.length > 0) proxySocket.write(head);
+
+    proxySocket.pipe(socket);
+    socket.pipe(proxySocket);
+
+    socket.on('error', () => proxySocket.destroy());
+    proxySocket.on('error', () => socket.destroy());
+    socket.on('close', () => proxySocket.destroy());
+    proxySocket.on('close', () => socket.destroy());
+  });
+
+  proxyReq.on('error', (err) => {
+    console.error(`[go2rtc] WS proxy error: ${err.message}`);
+    socket.destroy();
+  });
+
+  proxyReq.end();
+});
+
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`[Server] Ultrawide Dashboard running on http://0.0.0.0:${PORT}`);
+  console.log(`[Server] go2rtc proxy at /go2rtc/ -> ${GO2RTC_URL}`);
   console.log(`[Server] Settings stored in: ${SETTINGS_FILE}`);
 });

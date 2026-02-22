@@ -1501,6 +1501,7 @@ function CameraList({ cameras, onChange, haConnected }) {
               <select value={cam.streamType || 'snapshot'} onChange={(e) => updateCamera(cam.id, 'streamType', e.target.value)}
                 style={{ padding: '8px 10px', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '11px' }}>
                 <option value="snapshot">Snapshot</option>
+                <option value="go2rtc">go2rtc (RTSP Live)</option>
                 <option value="mjpeg">MJPEG</option>
                 <option value="hls">HLS (.m3u8)</option>
               </select>
@@ -1526,17 +1527,26 @@ function CameraList({ cameras, onChange, haConnected }) {
                 {isLoading ? <><Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> Testing</> : <><Check size={12} /> Test</>}
               </button>
             </div>
+            {/* RTSP URL field for go2rtc stream type */}
+            {cam.streamType === 'go2rtc' && (
+              <div style={{ marginTop: '8px' }}>
+                <input type="text" value={cam.rtspUrl || ''} onChange={(e) => updateCamera(cam.id, 'rtspUrl', e.target.value)}
+                  placeholder="RTSP URL — e.g. rtsps://192.168.1.1:7441/AbCdEf123 (from UniFi Protect)"
+                  style={{ width: '100%', padding: '8px 12px', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '12px', fontFamily: 'var(--font-mono)', boxSizing: 'border-box' }} />
+              </div>
+            )}
             {status && (
               <div style={{ marginTop: '8px', padding: '8px 10px', background: status.success ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)', border: `1px solid ${status.success ? 'var(--success)' : 'var(--danger)'}`, borderRadius: '4px', fontSize: '11px', color: status.success ? 'var(--success)' : 'var(--danger)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 {status.success ? <><Check size={12} /> Connected</> : <><X size={12} /> {status.error}</>}
               </div>
             )}
             <div style={{ marginTop: '8px', fontSize: '11px', color: 'var(--text-muted)' }}>
+              {cam.streamType === 'go2rtc' && '💡 LIVE — True live video via go2rtc. Paste your RTSP/RTSPS URL above. For UniFi: use rtsps:// URL from Protect, remove ?enableSrtp'}
               {cam.source === 'scrypted' && cam.streamType === 'mjpeg' && '💡 LIVE — True MJPEG stream via /getVideoStream. Continuous video, no polling.'}
               {cam.source === 'scrypted' && cam.streamType === 'snapshot' && '💡 Paste base Webhook URL from Scrypted. Refreshes every 5 seconds.'}
               {cam.source === 'scrypted' && cam.streamType === 'hls' && '💡 HLS requires Scrypted NVR plugin (paid) or go2rtc'}
               {cam.source === 'ha' && cam.streamType === 'mjpeg' && '💡 LIVE — Continuous MJPEG stream via HA camera proxy. Real-time video feed.'}
-              {cam.source !== 'scrypted' && cam.source !== 'ha' && cam.streamType === 'mjpeg' && '💡 LIVE — True MJPEG stream (works with go2rtc, Frigate, or any MJPEG source)'}
+              {cam.source !== 'scrypted' && cam.source !== 'ha' && cam.streamType === 'mjpeg' && cam.streamType !== 'go2rtc' && '💡 LIVE — True MJPEG stream (works with go2rtc, Frigate, or any MJPEG source)'}
               {cam.source !== 'scrypted' && cam.streamType === 'hls' && '💡 HLS works with go2rtc, Frigate, or any HLS stream'}
               {cam.streamType === 'snapshot' && cam.source !== 'scrypted' && '💡 Snapshots refresh every few seconds'}
             </div>

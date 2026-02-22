@@ -10,16 +10,53 @@ const vibrate = (pattern = 20) => {
 };
 
 // ========================
-// Check if URL is on local network (skip proxy for speed)
+// go2rtc stream management
 // ========================
-const isLocalUrl = (url) => {
-  if (!url) return false;
+const registerGo2rtcStream = async (streamName, rtspUrl) => {
+  if (!rtspUrl) return false;
+  // Convert rtsps:// to rtspx:// for go2rtc (handles self-signed certs like UniFi)
+  let source = rtspUrl.trim();
+  if (source.startsWith('rtsps://')) {
+    source = source.replace('rtsps://', 'rtspx://');
+  }
+  // Remove ?enableSrtp if present (UniFi adds it but go2rtc doesn't need it)
+  source = source.replace(/[?&]enableSrtp\b/i, '');
+
   try {
-    const parsed = new URL(url);
-    const host = parsed.hostname;
-    return host.startsWith('192.168.') || host.startsWith('10.') ||
-           host.startsWith('172.') || host === 'localhost' || host === '127.0.0.1';
-  } catch { return false; }
+    const res = await fetch('/api/go2rtc/streams', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ streams: { [streamName]: source } })
+    });
+    const data = await res.json();
+    console.log('[go2rtc] Register stream:', streamName, data);
+    return data.results?.[streamName]?.ok !== false;
+  } catch (err) {
+    console.error('[go2rtc] Failed to register stream:', err);
+    return false;
+  }
+};
+
+// Load go2rtc video-rtc.js web component (once)
+let go2rtcScriptLoaded = false;
+const loadGo2rtcPlayer = () => {
+  if (go2rtcScriptLoaded) return Promise.resolve();
+  return new Promise((resolve) => {
+    if (document.querySelector('script[data-go2rtc]')) {
+      go2rtcScriptLoaded = true;
+      resolve();
+      return;
+    }
+    const script = document.createElement('script');
+    script.setAttribute('data-go2rtc', 'true');
+    script.src = '/go2rtc/www/video-rtc.js';
+    script.onload = () => { go2rtcScriptLoaded = true; resolve(); };
+    script.onerror = () => {
+      console.warn('[go2rtc] video-rtc.js not available, falling back to snapshot polling');
+      resolve();
+    };
+    document.head.appendChild(script);
+  });
 };
 
 // ========================
@@ -30,13 +67,18 @@ function CameraModal({ cameras, initialCameraId, haBaseUrl, scryptedConfig, inte
   const [isLive, setIsLive] = useState(false);
   const [imgLoaded, setImgLoaded] = useState(false);
   const [fps, setFps] = useState(0);
+  const [go2rtcReady, setGo2rtcReady] = useState(false);
+  const [liveError, setLiveError] = useState(null);
   const visibleImgRef = useRef(null);
-  const bufferImgRef = useRef(null);
+  const go2rtcContainerRef = useRef(null);
   const liveRunningRef = useRef(false);
   const touchStartRef = useRef(null);
 
   const activeIdx = cameras.findIndex(c => c.id === activeCamId);
   const camera = cameras[activeIdx] || cameras[0];
+
+  // Check if this camera supports go2rtc (has RTSP URL configured)
+  const hasRtsp = !!(camera.rtspUrl || camera.streamType === 'go2rtc');
 
   // Get the raw snapshot URL for a camera (no cache buster)
   const getRawSnapshotUrl = useCallback((cam) => {
@@ -75,71 +117,122 @@ function CameraModal({ cameras, initialCameraId, haBaseUrl, scryptedConfig, inte
     return pUrl;
   }, [camera, integrations, scryptedConfig]);
 
-  // Double-buffered live polling — fetch next frame while showing current
+  // go2rtc MSE live streaming — or fallback to snapshot polling
   useEffect(() => {
     if (!isLive) {
       liveRunningRef.current = false;
+      setGo2rtcReady(false);
+      setLiveError(null);
+      // Clean up go2rtc element
+      if (go2rtcContainerRef.current) {
+        go2rtcContainerRef.current.innerHTML = '';
+      }
       return;
     }
 
+    let cancelled = false;
     liveRunningRef.current = true;
-    let frameCount = 0;
-    let fpsStart = performance.now();
 
-    const fetchNextFrame = async () => {
-      if (!liveRunningRef.current) return;
+    const startLive = async () => {
+      // If camera has RTSP URL, use go2rtc for true live streaming
+      if (hasRtsp && camera.rtspUrl) {
+        setLiveError(null);
+        const streamName = `cam_${camera.id.replace(/[^a-zA-Z0-9]/g, '_')}`;
 
-      const rawUrl = getRawSnapshotUrl(camera);
-      if (!rawUrl) return;
+        // 1. Register the RTSP stream with go2rtc
+        const ok = await registerGo2rtcStream(streamName, camera.rtspUrl);
+        if (cancelled) return;
 
-      // Always proxy — browser may not be on same network as camera (Docker/LXC)
-      const baseUrl = proxyUrl(rawUrl);
-      if (!baseUrl) return;
+        if (!ok) {
+          setLiveError('Failed to connect to go2rtc. Is it running?');
+          return;
+        }
 
-      const cacheBuster = `_=${Date.now()}&r=${Math.random()}`;
-      const frameUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}${cacheBuster}`;
+        // 2. Load the video-rtc.js player
+        await loadGo2rtcPlayer();
+        if (cancelled) return;
 
-      try {
-        // Preload in hidden buffer
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-
-        await new Promise((resolve, reject) => {
-          img.onload = resolve;
-          img.onerror = reject;
-          img.src = frameUrl;
-        });
-
-        if (!liveRunningRef.current) return;
-
-        // Swap to visible
-        if (visibleImgRef.current) {
-          visibleImgRef.current.src = frameUrl;
+        // 3. Create <video-rtc> element in the container
+        if (go2rtcContainerRef.current && customElements.get('video-rtc')) {
+          go2rtcContainerRef.current.innerHTML = '';
+          const el = document.createElement('video-rtc');
+          // Point src to our proxied WebSocket endpoint
+          const wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+          el.setAttribute('src', `${wsProto}//${location.host}/go2rtc/api/ws?src=${streamName}`);
+          el.setAttribute('mode', 'mse,webrtc,mp4,mjpeg');
+          el.style.width = '100%';
+          el.style.maxHeight = '80vh';
+          el.style.borderRadius = '12px';
+          el.style.display = 'block';
+          go2rtcContainerRef.current.appendChild(el);
+          setGo2rtcReady(true);
           setImgLoaded(true);
+        } else {
+          setLiveError('go2rtc player not available');
         }
-
-        // FPS counter
-        frameCount++;
-        const elapsed = performance.now() - fpsStart;
-        if (elapsed >= 1000) {
-          setFps(Math.round(frameCount * 1000 / elapsed));
-          frameCount = 0;
-          fpsStart = performance.now();
-        }
-      } catch {
-        // Frame failed, skip and try again
+        return;
       }
 
-      // Schedule next frame immediately (as fast as possible)
-      if (liveRunningRef.current) {
-        requestAnimationFrame(() => setTimeout(fetchNextFrame, 50)); // ~50ms min gap
-      }
+      // Fallback: snapshot polling for cameras without RTSP
+      let frameCount = 0;
+      let fpsStart = performance.now();
+
+      const fetchNextFrame = async () => {
+        if (!liveRunningRef.current || cancelled) return;
+
+        const rawUrl = getRawSnapshotUrl(camera);
+        if (!rawUrl) return;
+
+        const baseUrl = proxyUrl(rawUrl);
+        if (!baseUrl) return;
+
+        const cacheBuster = `_=${Date.now()}&r=${Math.random()}`;
+        const frameUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}${cacheBuster}`;
+
+        try {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          await new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = reject;
+            img.src = frameUrl;
+          });
+
+          if (!liveRunningRef.current || cancelled) return;
+          if (visibleImgRef.current) {
+            visibleImgRef.current.src = frameUrl;
+            setImgLoaded(true);
+          }
+
+          frameCount++;
+          const elapsed = performance.now() - fpsStart;
+          if (elapsed >= 1000) {
+            setFps(Math.round(frameCount * 1000 / elapsed));
+            frameCount = 0;
+            fpsStart = performance.now();
+          }
+        } catch {
+          // Frame failed, try again
+        }
+
+        if (liveRunningRef.current && !cancelled) {
+          requestAnimationFrame(() => setTimeout(fetchNextFrame, 50));
+        }
+      };
+
+      fetchNextFrame();
     };
 
-    fetchNextFrame();
+    startLive();
 
-    return () => { liveRunningRef.current = false; };
-  }, [isLive, activeCamId, camera, getRawSnapshotUrl, proxyUrl]);
+    return () => {
+      cancelled = true;
+      liveRunningRef.current = false;
+      if (go2rtcContainerRef.current) {
+        go2rtcContainerRef.current.innerHTML = '';
+      }
+    };
+  }, [isLive, activeCamId, camera, hasRtsp, getRawSnapshotUrl, proxyUrl]);
 
   // Get initial snapshot URL (with proxy, for non-live display)
   const getSnapshotUrl = () => {
@@ -212,7 +305,12 @@ function CameraModal({ cameras, initialCameraId, haBaseUrl, scryptedConfig, inte
               LIVE
             </span>
           )}
-          {isLive && fps > 0 && (
+          {isLive && go2rtcReady && hasRtsp && (
+            <span style={{ fontSize: '9px', color: 'rgba(100,255,100,0.6)', fontFamily: 'monospace' }}>
+              MSE
+            </span>
+          )}
+          {isLive && fps > 0 && !go2rtcReady && (
             <span style={{ fontSize: '9px', color: 'rgba(255,255,255,0.4)', fontFamily: 'monospace' }}>
               {fps} fps
             </span>
@@ -230,10 +328,35 @@ function CameraModal({ cameras, initialCameraId, haBaseUrl, scryptedConfig, inte
         </button>
       </div>
 
-      {/* Camera image */}
+      {/* Camera image / video */}
       <div style={{ position: 'relative', maxWidth: '95vw', maxHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        {/* Live mode: single img element updated by the polling loop */}
-        {isLive ? (
+        {/* go2rtc MSE live mode */}
+        {isLive && hasRtsp ? (
+          <>
+            <div
+              ref={go2rtcContainerRef}
+              style={{
+                maxWidth: '95vw', maxHeight: '80vh',
+                borderRadius: '12px', overflow: 'hidden',
+                display: go2rtcReady ? 'block' : 'none'
+              }}
+            />
+            {!go2rtcReady && !liveError && (
+              <div style={{ width: '300px', height: '200px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                <Loader2 size={32} style={{ animation: 'spin 1s linear infinite', color: 'var(--accent-primary)' }} />
+                <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>Connecting to stream...</span>
+              </div>
+            )}
+            {liveError && (
+              <div style={{ width: '300px', padding: '20px', textAlign: 'center', color: 'var(--danger)', fontSize: '13px' }}>
+                <Camera size={32} style={{ opacity: 0.5, marginBottom: '8px' }} />
+                <div>{liveError}</div>
+                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginTop: '8px' }}>Check RTSP URL in Setup</div>
+              </div>
+            )}
+          </>
+        ) : isLive ? (
+          /* Snapshot polling fallback for cameras without RTSP */
           <>
             <img
               ref={visibleImgRef}
@@ -307,19 +430,27 @@ function CameraModal({ cameras, initialCameraId, haBaseUrl, scryptedConfig, inte
       }}>
         {/* Live toggle */}
         <button
-          onClick={(e) => { e.stopPropagation(); vibrate(30); setIsLive(!isLive); setImgLoaded(false); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            vibrate(30);
+            setIsLive(!isLive);
+            setImgLoaded(false);
+            setGo2rtcReady(false);
+            setLiveError(null);
+            setFps(0);
+          }}
           style={{
             display: 'flex', alignItems: 'center', gap: '6px',
             padding: '10px 20px',
-            background: isLive ? 'rgba(255,51,51,0.2)' : 'rgba(255,255,255,0.1)',
-            border: `1px solid ${isLive ? '#ff3333' : 'rgba(255,255,255,0.2)'}`,
+            background: isLive ? 'rgba(255,51,51,0.2)' : hasRtsp ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.1)',
+            border: `1px solid ${isLive ? '#ff3333' : hasRtsp ? 'rgba(34,197,94,0.4)' : 'rgba(255,255,255,0.2)'}`,
             borderRadius: '24px',
-            color: isLive ? '#ff3333' : '#fff',
+            color: isLive ? '#ff3333' : hasRtsp ? '#22c55e' : '#fff',
             fontSize: '13px', fontWeight: '600',
             cursor: 'pointer'
           }}
         >
-          {isLive ? <><Pause size={14} /> Stop Live</> : <><Play size={14} /> Go Live</>}
+          {isLive ? <><Pause size={14} /> Stop</> : <><Play size={14} /> {hasRtsp ? 'Live Stream' : 'Go Live'}</>}
         </button>
 
         {/* Camera dots */}
@@ -385,7 +516,8 @@ export default function CameraPanel({ config }) {
             entityId: cam.entityId,
             entityPicture: entity?.attributes?.entity_picture,
             state: entity?.state,
-            streamType: cam.streamType || 'snapshot'
+            streamType: cam.streamType || 'snapshot',
+            rtspUrl: cam.rtspUrl
           });
         } else if (cam.source === 'scrypted' && (cam.scryptedId || cam.webhookUrl)) {
           // Scrypted camera from config - supports webhook URLs or device IDs
@@ -395,16 +527,18 @@ export default function CameraPanel({ config }) {
             source: 'scrypted',
             scryptedId: cam.scryptedId,
             webhookUrl: cam.webhookUrl,
-            streamType: cam.streamType || 'snapshot'
+            streamType: cam.streamType || 'snapshot',
+            rtspUrl: cam.rtspUrl
           });
-        } else if (cam.url) {
-          // Direct URL camera (RTSP proxy, HLS, snapshot)
+        } else if (cam.url || cam.rtspUrl) {
+          // Direct URL camera (RTSP proxy, HLS, snapshot) or go2rtc
           cameraList.push({
             id: cam.id,
             name: cam.name,
             source: cam.source,
             url: cam.url,
-            streamType: cam.streamType || detectStreamType(cam.url)
+            streamType: cam.streamType || detectStreamType(cam.url),
+            rtspUrl: cam.rtspUrl
           });
         }
       });
@@ -639,7 +773,9 @@ function CameraView({ camera, haBaseUrl, refreshKey, scryptedConfig, integration
   // Get the appropriate URL based on stream type
   const getStreamUrl = () => {
     const streamType = camera.streamType || 'snapshot';
-    const isLive = streamType === 'mjpeg';
+    // go2rtc cameras show snapshots in grid — live stream only in modal
+    const effectiveType = streamType === 'go2rtc' ? 'snapshot' : streamType;
+    const isLive = effectiveType === 'mjpeg';
 
     // Home Assistant cameras
     if (camera.source === 'ha') {
@@ -863,7 +999,12 @@ function CameraView({ camera, haBaseUrl, refreshKey, scryptedConfig, integration
       )}
       <div style={overlayStyle}>
         {camera.name}
-        {camera.source !== 'ha' && (
+        {camera.streamType === 'go2rtc' && camera.rtspUrl ? (
+          <span style={{ marginLeft: '8px', fontSize: '9px', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+            <Play size={8} style={{ fill: '#22c55e', color: '#22c55e' }} />
+            <span style={{ color: '#22c55e', fontWeight: '600' }}>RTSP</span>
+          </span>
+        ) : camera.source !== 'ha' && (
           <span style={{ marginLeft: '8px', fontSize: '9px', opacity: 0.7 }}>
             ({camera.source})
           </span>
