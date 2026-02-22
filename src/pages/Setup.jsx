@@ -1397,6 +1397,38 @@ function CameraList({ cameras, onChange, haConnected }) {
   };
 
   const testCamera = async (cam) => {
+    // go2rtc cameras - test by registering stream
+    if (cam.streamType === 'go2rtc') {
+      if (!cam.rtspUrl) {
+        setCamStatus(prev => ({ ...prev, [cam.id]: { success: false, error: 'No RTSP URL provided' } }));
+        return;
+      }
+      setTesting(prev => ({ ...prev, [cam.id]: true }));
+      try {
+        const streamName = `cam_${cam.id.replace(/[^a-zA-Z0-9]/g, '_')}`;
+        let source = cam.rtspUrl.trim();
+        if (source.startsWith('rtsps://')) source = source.replace('rtsps://', 'rtspx://');
+        source = source.replace(/[?&]enableSrtp\b/i, '');
+
+        const res = await fetch('/api/go2rtc/streams', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ streams: { [streamName]: source } })
+        });
+        const data = await res.json();
+        if (data.results?.[streamName]?.ok) {
+          setCamStatus(prev => ({ ...prev, [cam.id]: { success: true } }));
+        } else {
+          throw new Error(data.results?.[streamName]?.body || `HTTP ${data.results?.[streamName]?.status}`);
+        }
+      } catch (err) {
+        setCamStatus(prev => ({ ...prev, [cam.id]: { success: false, error: err.message } }));
+      } finally {
+        setTesting(prev => ({ ...prev, [cam.id]: false }));
+      }
+      return;
+    }
+
     // Home Assistant cameras
     if (cam.source === 'ha') {
       if (!cam.entityId) {
@@ -1484,24 +1516,28 @@ function CameraList({ cameras, onChange, haConnected }) {
       {cameras.map((cam) => {
         const status = camStatus[cam.id];
         const isLoading = testing[cam.id];
-        const hasUrl = cam.source === 'ha' ? cam.entityId : cam.source === 'scrypted' ? cam.webhookUrl : cam.url;
+        const isGo2rtc = cam.streamType === 'go2rtc';
+        const hasUrl = isGo2rtc ? cam.rtspUrl : cam.source === 'ha' ? cam.entityId : cam.source === 'scrypted' ? cam.webhookUrl : cam.url;
 
         return (
-          <div key={cam.id} style={{ background: 'var(--bg-secondary)', borderRadius: '8px', padding: '12px', marginBottom: '12px', borderLeft: status ? `3px solid ${status.success ? 'var(--success)' : 'var(--danger)'}` : '3px solid transparent' }}>
+          <div key={cam.id} style={{ background: 'var(--bg-secondary)', borderRadius: '8px', padding: '12px', marginBottom: '12px', borderLeft: status ? `3px solid ${status.success ? 'var(--success)' : 'var(--danger)'}` : isGo2rtc ? '3px solid rgba(34,197,94,0.3)' : '3px solid transparent' }}>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap' }}>
               <input type="text" value={cam.name} onChange={(e) => updateCamera(cam.id, 'name', e.target.value)} placeholder="Camera name"
                 style={{ flex: 1, minWidth: '120px', padding: '8px 12px', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '13px' }} />
-              <select value={cam.source} onChange={(e) => updateCamera(cam.id, 'source', e.target.value)}
-                style={{ padding: '8px 10px', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '11px' }}>
-                <option value="url">Direct URL</option>
-                <option value="ha">Home Assistant</option>
-                <option value="scrypted">Scrypted</option>
-                <option value="homebridge">Homebridge</option>
-              </select>
+              {/* Only show source dropdown for non-go2rtc cameras */}
+              {!isGo2rtc && (
+                <select value={cam.source} onChange={(e) => updateCamera(cam.id, 'source', e.target.value)}
+                  style={{ padding: '8px 10px', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '11px' }}>
+                  <option value="url">Direct URL</option>
+                  <option value="ha">Home Assistant</option>
+                  <option value="scrypted">Scrypted</option>
+                  <option value="homebridge">Homebridge</option>
+                </select>
+              )}
               <select value={cam.streamType || 'snapshot'} onChange={(e) => updateCamera(cam.id, 'streamType', e.target.value)}
-                style={{ padding: '8px 10px', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '11px' }}>
+                style={{ padding: '8px 10px', background: 'var(--bg-card)', border: `1px solid ${isGo2rtc ? 'rgba(34,197,94,0.4)' : 'var(--border-color)'}`, borderRadius: '6px', color: isGo2rtc ? '#22c55e' : 'var(--text-primary)', fontSize: '11px', fontWeight: isGo2rtc ? '600' : '400' }}>
                 <option value="snapshot">Snapshot</option>
-                <option value="go2rtc">go2rtc (RTSP Live)</option>
+                <option value="go2rtc">RTSP Live (go2rtc)</option>
                 <option value="mjpeg">MJPEG</option>
                 <option value="hls">HLS (.m3u8)</option>
               </select>
@@ -1510,29 +1546,35 @@ function CameraList({ cameras, onChange, haConnected }) {
                 <Trash2 size={14} />
               </button>
             </div>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              {cam.source === 'ha' ? (
-                <input type="text" value={cam.entityId} onChange={(e) => updateCamera(cam.id, 'entityId', e.target.value)} placeholder="Entity ID (camera.front_door)"
-                  style={{ flex: 1, padding: '8px 12px', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '12px', fontFamily: 'var(--font-mono)' }} />
-              ) : cam.source === 'scrypted' ? (
-                <input type="text" value={cam.webhookUrl || ''} onChange={(e) => updateCamera(cam.id, 'webhookUrl', e.target.value)} placeholder="Scrypted Webhook URL (from Webhook plugin)"
-                  style={{ flex: 1, padding: '8px 12px', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '12px', fontFamily: 'var(--font-mono)' }} />
-              ) : (
-                <input type="text" value={cam.url} onChange={(e) => updateCamera(cam.id, 'url', e.target.value)}
-                  placeholder={cam.streamType === 'hls' ? 'HLS stream URL (.m3u8)' : cam.streamType === 'mjpeg' ? 'MJPEG stream URL' : 'Snapshot URL (refreshes periodically)'}
-                  style={{ flex: 1, padding: '8px 12px', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '12px', fontFamily: 'var(--font-mono)' }} />
-              )}
-              <button onClick={() => testCamera(cam)} disabled={isLoading || !hasUrl}
-                style={{ padding: '8px 12px', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '6px', color: hasUrl ? 'var(--accent-primary)' : 'var(--text-muted)', cursor: hasUrl ? 'pointer' : 'not-allowed', fontSize: '11px', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
-                {isLoading ? <><Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> Testing</> : <><Check size={12} /> Test</>}
-              </button>
-            </div>
-            {/* RTSP URL field for go2rtc stream type */}
-            {cam.streamType === 'go2rtc' && (
-              <div style={{ marginTop: '8px' }}>
+            {/* go2rtc: just the RTSP URL */}
+            {isGo2rtc ? (
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                 <input type="text" value={cam.rtspUrl || ''} onChange={(e) => updateCamera(cam.id, 'rtspUrl', e.target.value)}
-                  placeholder="RTSP URL — e.g. rtsps://192.168.1.1:7441/AbCdEf123 (from UniFi Protect)"
-                  style={{ width: '100%', padding: '8px 12px', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '12px', fontFamily: 'var(--font-mono)', boxSizing: 'border-box' }} />
+                  placeholder="rtsps://192.168.1.1:7441/AbCdEf123 (RTSP/RTSPS URL)"
+                  style={{ flex: 1, padding: '8px 12px', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '12px', fontFamily: 'var(--font-mono)' }} />
+                <button onClick={() => testCamera(cam)} disabled={isLoading || !hasUrl}
+                  style={{ padding: '8px 12px', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '6px', color: hasUrl ? 'var(--accent-primary)' : 'var(--text-muted)', cursor: hasUrl ? 'pointer' : 'not-allowed', fontSize: '11px', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
+                  {isLoading ? <><Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> Testing</> : <><Check size={12} /> Test</>}
+                </button>
+              </div>
+            ) : (
+              /* Other sources: HA entity ID, Scrypted webhook, or direct URL */
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                {cam.source === 'ha' ? (
+                  <input type="text" value={cam.entityId} onChange={(e) => updateCamera(cam.id, 'entityId', e.target.value)} placeholder="Entity ID (camera.front_door)"
+                    style={{ flex: 1, padding: '8px 12px', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '12px', fontFamily: 'var(--font-mono)' }} />
+                ) : cam.source === 'scrypted' ? (
+                  <input type="text" value={cam.webhookUrl || ''} onChange={(e) => updateCamera(cam.id, 'webhookUrl', e.target.value)} placeholder="Scrypted Webhook URL (from Webhook plugin)"
+                    style={{ flex: 1, padding: '8px 12px', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '12px', fontFamily: 'var(--font-mono)' }} />
+                ) : (
+                  <input type="text" value={cam.url} onChange={(e) => updateCamera(cam.id, 'url', e.target.value)}
+                    placeholder={cam.streamType === 'hls' ? 'HLS stream URL (.m3u8)' : cam.streamType === 'mjpeg' ? 'MJPEG stream URL' : 'Snapshot URL (refreshes periodically)'}
+                    style={{ flex: 1, padding: '8px 12px', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '12px', fontFamily: 'var(--font-mono)' }} />
+                )}
+                <button onClick={() => testCamera(cam)} disabled={isLoading || !hasUrl}
+                  style={{ padding: '8px 12px', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '6px', color: hasUrl ? 'var(--accent-primary)' : 'var(--text-muted)', cursor: hasUrl ? 'pointer' : 'not-allowed', fontSize: '11px', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
+                  {isLoading ? <><Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> Testing</> : <><Check size={12} /> Test</>}
+                </button>
               </div>
             )}
             {status && (
@@ -1541,14 +1583,13 @@ function CameraList({ cameras, onChange, haConnected }) {
               </div>
             )}
             <div style={{ marginTop: '8px', fontSize: '11px', color: 'var(--text-muted)' }}>
-              {cam.streamType === 'go2rtc' && '💡 LIVE — True live video via go2rtc. Paste your RTSP/RTSPS URL above. For UniFi: use rtsps:// URL from Protect, remove ?enableSrtp'}
-              {cam.source === 'scrypted' && cam.streamType === 'mjpeg' && '💡 LIVE — True MJPEG stream via /getVideoStream. Continuous video, no polling.'}
-              {cam.source === 'scrypted' && cam.streamType === 'snapshot' && '💡 Paste base Webhook URL from Scrypted. Refreshes every 5 seconds.'}
-              {cam.source === 'scrypted' && cam.streamType === 'hls' && '💡 HLS requires Scrypted NVR plugin (paid) or go2rtc'}
-              {cam.source === 'ha' && cam.streamType === 'mjpeg' && '💡 LIVE — Continuous MJPEG stream via HA camera proxy. Real-time video feed.'}
-              {cam.source !== 'scrypted' && cam.source !== 'ha' && cam.streamType === 'mjpeg' && cam.streamType !== 'go2rtc' && '💡 LIVE — True MJPEG stream (works with go2rtc, Frigate, or any MJPEG source)'}
-              {cam.source !== 'scrypted' && cam.streamType === 'hls' && '💡 HLS works with go2rtc, Frigate, or any HLS stream'}
-              {cam.streamType === 'snapshot' && cam.source !== 'scrypted' && '💡 Snapshots refresh every few seconds'}
+              {isGo2rtc && '💡 Paste RTSP/RTSPS URL from your camera (UniFi, Hikvision, etc). Thumbnails and live stream handled automatically by go2rtc.'}
+              {!isGo2rtc && cam.source === 'scrypted' && cam.streamType === 'mjpeg' && '💡 LIVE — True MJPEG stream via /getVideoStream.'}
+              {!isGo2rtc && cam.source === 'scrypted' && cam.streamType === 'snapshot' && '💡 Paste base Webhook URL from Scrypted. Refreshes every 5 seconds.'}
+              {!isGo2rtc && cam.source === 'ha' && cam.streamType === 'mjpeg' && '💡 LIVE — Continuous MJPEG stream via HA camera proxy.'}
+              {!isGo2rtc && cam.streamType === 'mjpeg' && cam.source !== 'ha' && cam.source !== 'scrypted' && '💡 LIVE — True MJPEG stream (go2rtc, Frigate, etc)'}
+              {!isGo2rtc && cam.streamType === 'hls' && '💡 HLS works with go2rtc, Frigate, or any HLS source'}
+              {!isGo2rtc && cam.streamType === 'snapshot' && '💡 Snapshots refresh every few seconds'}
             </div>
           </div>
         );

@@ -236,11 +236,24 @@ function CameraModal({ cameras, initialCameraId, haBaseUrl, scryptedConfig, inte
 
   // Get initial snapshot URL (with proxy, for non-live display)
   const getSnapshotUrl = () => {
+    // go2rtc cameras: get snapshot from go2rtc API (also registers stream)
+    if (camera.streamType === 'go2rtc' && camera.rtspUrl) {
+      const streamName = `cam_${camera.id.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      return `/go2rtc/api/frame.jpeg?src=${encodeURIComponent(streamName)}&_=${Date.now()}`;
+    }
     const rawUrl = getRawSnapshotUrl(camera);
     if (!rawUrl) return null;
     const pUrl = proxyUrl(rawUrl);
     return `${pUrl}${pUrl.includes('?') ? '&' : '?'}_=${Date.now()}`;
   };
+
+  // Register go2rtc stream when modal opens (for snapshot preview)
+  useEffect(() => {
+    if (camera.streamType === 'go2rtc' && camera.rtspUrl) {
+      const streamName = `cam_${camera.id.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      registerGo2rtcStream(streamName, camera.rtspUrl);
+    }
+  }, [camera.id, camera.streamType, camera.rtspUrl]);
 
   // Reset when switching cameras
   useEffect(() => {
@@ -506,6 +519,18 @@ export default function CameraPanel({ config }) {
       configuredCameras.forEach(cam => {
         if (!cam.enabled) return;
 
+        // go2rtc cameras — only need RTSP URL, thumbnails from go2rtc API
+        if (cam.streamType === 'go2rtc' && cam.rtspUrl) {
+          cameraList.push({
+            id: cam.id,
+            name: cam.name || 'Camera',
+            source: 'go2rtc',
+            streamType: 'go2rtc',
+            rtspUrl: cam.rtspUrl
+          });
+          return;
+        }
+
         if (cam.source === 'ha' && cam.entityId) {
           // Home Assistant camera
           const entity = homeAssistant.getEntity(cam.entityId);
@@ -770,12 +795,27 @@ function CameraView({ camera, haBaseUrl, refreshKey, scryptedConfig, integration
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // Register go2rtc stream on mount so snapshots are available
+  const [go2rtcRegistered, setGo2rtcRegistered] = useState(false);
+  useEffect(() => {
+    if (camera.streamType === 'go2rtc' && camera.rtspUrl && !go2rtcRegistered) {
+      const streamName = `cam_${camera.id.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      registerGo2rtcStream(streamName, camera.rtspUrl).then(ok => {
+        if (ok) setGo2rtcRegistered(true);
+      });
+    }
+  }, [camera.streamType, camera.rtspUrl, camera.id, go2rtcRegistered]);
+
   // Get the appropriate URL based on stream type
   const getStreamUrl = () => {
     const streamType = camera.streamType || 'snapshot';
-    // go2rtc cameras show snapshots in grid — live stream only in modal
-    const effectiveType = streamType === 'go2rtc' ? 'snapshot' : streamType;
-    const isLive = effectiveType === 'mjpeg';
+    const isLive = streamType === 'mjpeg';
+
+    // go2rtc cameras — get snapshot from go2rtc's own API
+    if (streamType === 'go2rtc') {
+      const streamName = `cam_${camera.id.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      return `/go2rtc/api/frame.jpeg?src=${encodeURIComponent(streamName)}&_=${refreshKey}`;
+    }
 
     // Home Assistant cameras
     if (camera.source === 'ha') {
