@@ -332,29 +332,33 @@ app.post('/api/go2rtc/streams', async (req, res) => {
 
   for (const [name, source] of Object.entries(streams)) {
     try {
-      // PUT /api/streams?src=NAME with body as the source URL
-      const putUrl = `${GO2RTC_URL}/api/streams?src=${encodeURIComponent(name)}`;
+      // go2rtc expects: PUT /api/streams?name=NAME&src=SOURCE_URL (no body)
+      const putUrl = `${GO2RTC_URL}/api/streams?name=${encodeURIComponent(name)}&src=${encodeURIComponent(source)}`;
       const parsed = new URL(putUrl);
 
-      await new Promise((resolve, reject) => {
+      console.log(`[go2rtc] PUT stream: name=${name}, src=${source}`);
+
+      await new Promise((resolve) => {
         const r = http.request({
           hostname: parsed.hostname,
           port: parsed.port,
           path: parsed.pathname + parsed.search,
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
           timeout: 5000
         }, (pRes) => {
           const chunks = [];
           pRes.on('data', c => chunks.push(c));
           pRes.on('end', () => {
-            results[name] = { ok: pRes.statusCode < 400, status: pRes.statusCode };
+            const body = Buffer.concat(chunks).toString();
+            results[name] = { ok: pRes.statusCode < 400, status: pRes.statusCode, body };
+            if (pRes.statusCode >= 400) {
+              console.error(`[go2rtc] Stream ${name} failed: ${pRes.statusCode} - ${body}`);
+            }
             resolve();
           });
         });
         r.on('error', (e) => { results[name] = { ok: false, error: e.message }; resolve(); });
-        r.write(JSON.stringify(source));
-        r.end();
+        r.end(); // No body — everything is in the query string
       });
     } catch (e) {
       results[name] = { ok: false, error: e.message };
