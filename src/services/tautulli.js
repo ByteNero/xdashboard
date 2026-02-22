@@ -104,6 +104,15 @@ class TautulliService {
   }
 
   async fetchAll() {
+    if (!this.connected) {
+      // Clear all data when disconnected so stale info doesn't persist
+      this.activity = { streamCount: 0, streams: [] };
+      this.recentlyAdded = [];
+      this.history = [];
+      this.stats = null;
+      this.notifySubscribers();
+      return;
+    }
     await Promise.all([
       this.fetchActivity(),
       this.fetchRecentlyAdded(),
@@ -144,9 +153,13 @@ class TautulliService {
             location: s.location
           }))
         };
+      } else {
+        // API returned null/error — clear stale data so we don't show phantom streams
+        this.activity = { streamCount: 0, streams: [] };
       }
     } catch (error) {
       console.error('[Tautulli] Failed to fetch activity:', error);
+      this.activity = { streamCount: 0, streams: [] };
     }
   }
 
@@ -169,9 +182,13 @@ class TautulliService {
           seasonNum: item.parent_media_index,
           episodeNum: item.media_index
         }));
+      } else {
+        // Don't keep stale data if API fails
+        this.recentlyAdded = [];
       }
     } catch (error) {
       console.error('[Tautulli] Failed to fetch recently added:', error);
+      this.recentlyAdded = [];
     }
   }
 
@@ -187,9 +204,12 @@ class TautulliService {
           duration: item.play_duration,
           percentComplete: item.percent_complete
         }));
+      } else {
+        this.history = [];
       }
     } catch (error) {
       console.error('[Tautulli] Failed to fetch history:', error);
+      this.history = [];
     }
   }
 
@@ -257,6 +277,7 @@ class TautulliService {
       };
     } catch (error) {
       console.error('[Tautulli] Failed to fetch stats:', error);
+      this.stats = null;
     }
   }
 
