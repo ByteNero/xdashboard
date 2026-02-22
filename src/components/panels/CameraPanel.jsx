@@ -70,12 +70,15 @@ const loadGo2rtcPlayer = () => {
     }
 
     // Try video-stream.js first (registers the custom element), fall back to video-rtc.js
-    const tryLoad = (src, fallbackSrc) => {
+    // NOTE: go2rtc serves static files at root /, NOT under /www/
+    // video-stream.js uses ES module imports so needs type="module"
+    const tryLoad = (src, fallbackSrc, useModule) => {
       const script = document.createElement('script');
       script.setAttribute('data-go2rtc', 'true');
+      if (useModule) script.type = 'module';
       script.src = src;
       script.onload = () => {
-        // Wait for custom element registration
+        // Wait for custom element registration (modules execute async)
         setTimeout(() => {
           go2rtcElementTag = customElements.get('video-stream') ? 'video-stream'
             : customElements.get('video-rtc') ? 'video-rtc' : null;
@@ -86,18 +89,18 @@ const loadGo2rtcPlayer = () => {
           } else if (fallbackSrc) {
             console.warn(`[go2rtc] ${src} loaded but no custom element found, trying ${fallbackSrc}`);
             script.remove();
-            tryLoad(fallbackSrc, null);
+            tryLoad(fallbackSrc, null, false);
           } else {
             console.warn('[go2rtc] Script loaded but no custom element registered');
             resolve();
           }
-        }, 100);
+        }, 300);
       };
       script.onerror = () => {
         if (fallbackSrc) {
           console.warn(`[go2rtc] ${src} not found, trying ${fallbackSrc}`);
           script.remove();
-          tryLoad(fallbackSrc, null);
+          tryLoad(fallbackSrc, null, false);
         } else {
           console.warn('[go2rtc] No player script available, falling back to snapshot polling');
           resolve();
@@ -106,7 +109,8 @@ const loadGo2rtcPlayer = () => {
       document.head.appendChild(script);
     };
 
-    tryLoad('/go2rtc/www/video-stream.js', '/go2rtc/www/video-rtc.js');
+    // go2rtc serves files at root: /video-stream.js, /video-rtc.js (no /www/ prefix)
+    tryLoad('/go2rtc/video-stream.js', '/go2rtc/video-rtc.js', true);
   });
 };
 

@@ -287,13 +287,23 @@ app.all('/go2rtc/*', async (req, res) => {
       timeout: 10000
     }, (proxyRes) => {
       res.statusCode = proxyRes.statusCode;
+      // Copy headers, but skip problematic ones
+      const skipHeaders = ['content-encoding', 'transfer-encoding', 'connection', 'x-content-type-options'];
       for (const [key, value] of Object.entries(proxyRes.headers)) {
         const lk = key.toLowerCase();
-        if (!['content-encoding', 'transfer-encoding', 'connection'].includes(lk)) {
+        if (!skipHeaders.includes(lk)) {
           try { res.setHeader(key, value); } catch (e) {}
         }
       }
       res.setHeader('Access-Control-Allow-Origin', '*');
+
+      // Ensure correct Content-Type for JS files (go2rtc may not set it properly)
+      const reqPath = parsed.pathname.toLowerCase();
+      if (reqPath.endsWith('.js')) {
+        res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+      } else if (reqPath.endsWith('.html')) {
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      }
 
       // Stream if needed (video-rtc.js, MP4 streams, etc.)
       const ct = proxyRes.headers['content-type'] || '';
