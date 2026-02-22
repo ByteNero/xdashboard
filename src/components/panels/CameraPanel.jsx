@@ -37,25 +37,76 @@ const registerGo2rtcStream = async (streamName, rtspUrl) => {
   }
 };
 
-// Load go2rtc video-rtc.js web component (once)
+// Load go2rtc web component script (once)
+// video-stream.js registers the <video-stream> custom element that wraps VideoRTC.
+// video-rtc.js only exports the class but does NOT call customElements.define().
 let go2rtcScriptLoaded = false;
+let go2rtcElementTag = null; // will be 'video-stream' or 'video-rtc'
 const loadGo2rtcPlayer = () => {
-  if (go2rtcScriptLoaded) return Promise.resolve();
+  if (go2rtcScriptLoaded && go2rtcElementTag) return Promise.resolve();
   return new Promise((resolve) => {
-    if (document.querySelector('script[data-go2rtc]')) {
+    // Already loaded?
+    if (customElements.get('video-stream')) {
       go2rtcScriptLoaded = true;
+      go2rtcElementTag = 'video-stream';
       resolve();
       return;
     }
-    const script = document.createElement('script');
-    script.setAttribute('data-go2rtc', 'true');
-    script.src = '/go2rtc/www/video-rtc.js';
-    script.onload = () => { go2rtcScriptLoaded = true; resolve(); };
-    script.onerror = () => {
-      console.warn('[go2rtc] video-rtc.js not available, falling back to snapshot polling');
+    if (customElements.get('video-rtc')) {
+      go2rtcScriptLoaded = true;
+      go2rtcElementTag = 'video-rtc';
       resolve();
+      return;
+    }
+    if (document.querySelector('script[data-go2rtc]')) {
+      // Script tag exists but element not registered yet — wait a tick
+      setTimeout(() => {
+        go2rtcElementTag = customElements.get('video-stream') ? 'video-stream'
+          : customElements.get('video-rtc') ? 'video-rtc' : null;
+        go2rtcScriptLoaded = !!go2rtcElementTag;
+        resolve();
+      }, 200);
+      return;
+    }
+
+    // Try video-stream.js first (registers the custom element), fall back to video-rtc.js
+    const tryLoad = (src, fallbackSrc) => {
+      const script = document.createElement('script');
+      script.setAttribute('data-go2rtc', 'true');
+      script.src = src;
+      script.onload = () => {
+        // Wait for custom element registration
+        setTimeout(() => {
+          go2rtcElementTag = customElements.get('video-stream') ? 'video-stream'
+            : customElements.get('video-rtc') ? 'video-rtc' : null;
+          if (go2rtcElementTag) {
+            go2rtcScriptLoaded = true;
+            console.log(`[go2rtc] Loaded player: <${go2rtcElementTag}> from ${src}`);
+            resolve();
+          } else if (fallbackSrc) {
+            console.warn(`[go2rtc] ${src} loaded but no custom element found, trying ${fallbackSrc}`);
+            script.remove();
+            tryLoad(fallbackSrc, null);
+          } else {
+            console.warn('[go2rtc] Script loaded but no custom element registered');
+            resolve();
+          }
+        }, 100);
+      };
+      script.onerror = () => {
+        if (fallbackSrc) {
+          console.warn(`[go2rtc] ${src} not found, trying ${fallbackSrc}`);
+          script.remove();
+          tryLoad(fallbackSrc, null);
+        } else {
+          console.warn('[go2rtc] No player script available, falling back to snapshot polling');
+          resolve();
+        }
+      };
+      document.head.appendChild(script);
     };
-    document.head.appendChild(script);
+
+    tryLoad('/go2rtc/www/video-stream.js', '/go2rtc/www/video-rtc.js');
   });
 };
 
@@ -123,8 +174,13 @@ function CameraModal({ cameras, initialCameraId, haBaseUrl, scryptedConfig, inte
       liveRunningRef.current = false;
       setGo2rtcReady(false);
       setLiveError(null);
-      // Clean up go2rtc element
+      // Clean up go2rtc element properly
       if (go2rtcContainerRef.current) {
+        const player = go2rtcContainerRef.current.firstElementChild;
+        if (player) {
+          try { player.src = ''; } catch (e) {}
+          player.remove();
+        }
         go2rtcContainerRef.current.innerHTML = '';
       }
       return;
@@ -152,23 +208,38 @@ function CameraModal({ cameras, initialCameraId, haBaseUrl, scryptedConfig, inte
         await loadGo2rtcPlayer();
         if (cancelled) return;
 
-        // 3. Create <video-rtc> element in the container
-        if (go2rtcContainerRef.current && customElements.get('video-rtc')) {
+        // 3. Create the go2rtc player element in the container
+        // CRITICAL:
+        //   - Use go2rtcElementTag (detected during script load) for correct element name
+        //   - Append to DOM FIRST (element needs isConnected === true)
+        //   - Use PROPERTY setter el.src, NOT el.setAttribute('src', ...)
+        //     because setAttribute doesn't trigger the JS setter that starts the connection
+        const tag = go2rtcElementTag;
+        if (go2rtcContainerRef.current && tag && customElements.get(tag)) {
           go2rtcContainerRef.current.innerHTML = '';
-          const el = document.createElement('video-rtc');
-          // Point src to our proxied WebSocket endpoint
-          const wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-          el.setAttribute('src', `${wsProto}//${location.host}/go2rtc/api/ws?src=${streamName}`);
-          el.setAttribute('mode', 'mse,webrtc,mp4,mjpeg');
+          const el = document.createElement(tag);
           el.style.width = '100%';
           el.style.maxHeight = '80vh';
           el.style.borderRadius = '12px';
           el.style.display = 'block';
+
+          // Step A: Append to DOM first (must be connected before setting src)
           go2rtcContainerRef.current.appendChild(el);
+
+          // Step B: Set mode via property (fallback chain for browser compatibility)
+          el.mode = 'mse,webrtc,mp4,mjpeg';
+
+          // Step C: Set src via PROPERTY setter — this triggers onconnect() internally
+          const wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+          const wsUrl = `${wsProto}//${location.host}/go2rtc/api/ws?src=${streamName}`;
+          console.log(`[go2rtc] Setting player src: ${wsUrl}`);
+          el.src = wsUrl;
+
           setGo2rtcReady(true);
           setImgLoaded(true);
         } else {
-          setLiveError('go2rtc player not available');
+          console.error(`[go2rtc] Player not available: tag=${tag}, registered=${tag ? !!customElements.get(tag) : false}`);
+          setLiveError('go2rtc player not available — check browser console');
         }
         return;
       }
@@ -228,7 +299,13 @@ function CameraModal({ cameras, initialCameraId, haBaseUrl, scryptedConfig, inte
     return () => {
       cancelled = true;
       liveRunningRef.current = false;
+      // Clean up go2rtc element properly — remove child so disconnectedCallback fires
       if (go2rtcContainerRef.current) {
+        const player = go2rtcContainerRef.current.firstElementChild;
+        if (player) {
+          try { player.src = ''; } catch (e) {}  // disconnect WebSocket
+          player.remove();
+        }
         go2rtcContainerRef.current.innerHTML = '';
       }
     };
