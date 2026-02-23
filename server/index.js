@@ -13,10 +13,14 @@ const GO2RTC_URL = process.env.GO2RTC_URL || 'http://localhost:1984';
 // Data directory - use /data in Docker, local data/ otherwise
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
+const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
 
-// Ensure data directory exists
+// Ensure data directories exist
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 }
 
 // Middleware
@@ -377,6 +381,126 @@ app.post('/api/go2rtc/streams', async (req, res) => {
 
   console.log('[go2rtc] Stream config results:', results);
   res.json({ results });
+});
+
+// ============================================
+// Image Upload — for standby background etc.
+// ============================================
+
+// Serve uploaded files
+app.use('/uploads', express.static(UPLOADS_DIR, {
+  maxAge: '7d',
+  setHeaders: (res, filePath) => {
+    // Set correct content-type based on extension
+    const ext = path.extname(filePath).toLowerCase();
+    const mimeTypes = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.bmp': 'image/bmp' };
+    if (mimeTypes[ext]) res.setHeader('Content-Type', mimeTypes[ext]);
+  }
+}));
+
+// Upload endpoint — accepts multipart form data with a single 'image' file
+app.post('/api/upload', (req, res) => {
+  const contentType = req.headers['content-type'] || '';
+
+  // Handle multipart form upload
+  if (contentType.includes('multipart/form-data')) {
+    const boundary = contentType.split('boundary=')[1];
+    if (!boundary) return res.status(400).json({ error: 'Missing boundary' });
+
+    const chunks = [];
+    req.on('data', chunk => chunks.push(chunk));
+    req.on('end', () => {
+      try {
+        const body = Buffer.concat(chunks);
+        const bodyStr = body.toString('latin1');
+
+        // Parse multipart — find the file part
+        const parts = bodyStr.split('--' + boundary);
+        let fileData = null;
+        let fileName = 'upload.jpg';
+        let fileMime = 'image/jpeg';
+
+        for (const part of parts) {
+          if (part.includes('Content-Disposition') && part.includes('filename=')) {
+            // Extract filename
+            const fnMatch = part.match(/filename="([^"]+)"/);
+            if (fnMatch) fileName = fnMatch[1];
+
+            // Extract content-type
+            const ctMatch = part.match(/Content-Type:\s*([^\r\n]+)/i);
+            if (ctMatch) fileMime = ctMatch[1].trim();
+
+            // Extract file data (after the double CRLF)
+            const headerEnd = part.indexOf('\r\n\r\n');
+            if (headerEnd >= 0) {
+              // Get raw binary from the original buffer
+              const partStart = body.indexOf(Buffer.from(part.substring(0, 20), 'latin1'));
+              if (partStart >= 0) {
+                const dataStart = partStart + headerEnd + 4;
+                // Find end of this part (before the trailing \r\n)
+                let dataEnd = body.length;
+                const nextBoundary = body.indexOf(Buffer.from('\r\n--' + boundary, 'latin1'), dataStart);
+                if (nextBoundary > 0) dataEnd = nextBoundary;
+                fileData = body.slice(dataStart, dataEnd);
+              }
+            }
+          }
+        }
+
+        if (!fileData || fileData.length === 0) {
+          return res.status(400).json({ error: 'No file data found' });
+        }
+
+        // Validate it's an image
+        const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml', 'image/bmp'];
+        if (!allowedTypes.includes(fileMime)) {
+          return res.status(400).json({ error: 'Only image files are allowed' });
+        }
+
+        // Limit to 20MB
+        if (fileData.length > 20 * 1024 * 1024) {
+          return res.status(400).json({ error: 'File too large (max 20MB)' });
+        }
+
+        // Generate unique filename
+        const ext = path.extname(fileName).toLowerCase() || '.jpg';
+        const safeName = `standby_${Date.now()}${ext}`;
+        const filePath = path.join(UPLOADS_DIR, safeName);
+
+        // Delete any previous standby images to save space
+        try {
+          const existing = fs.readdirSync(UPLOADS_DIR).filter(f => f.startsWith('standby_'));
+          existing.forEach(f => {
+            try { fs.unlinkSync(path.join(UPLOADS_DIR, f)); } catch (e) {}
+          });
+        } catch (e) {}
+
+        fs.writeFileSync(filePath, fileData);
+        console.log(`[Upload] Saved ${safeName} (${(fileData.length / 1024).toFixed(1)}KB)`);
+
+        res.json({ ok: true, url: `/uploads/${safeName}` });
+      } catch (err) {
+        console.error('[Upload] Parse error:', err.message);
+        res.status(500).json({ error: 'Upload failed' });
+      }
+    });
+    return;
+  }
+
+  res.status(400).json({ error: 'Unsupported content type. Use multipart/form-data.' });
+});
+
+// Delete uploaded file
+app.delete('/api/upload', (req, res) => {
+  try {
+    const existing = fs.readdirSync(UPLOADS_DIR).filter(f => f.startsWith('standby_'));
+    existing.forEach(f => {
+      try { fs.unlinkSync(path.join(UPLOADS_DIR, f)); } catch (e) {}
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ============================================

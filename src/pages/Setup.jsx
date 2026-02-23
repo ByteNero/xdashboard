@@ -3224,31 +3224,94 @@ export default function Setup() {
                     </div>
                   </div>
 
-                  {/* Background Image URL */}
+                  {/* Background Image — upload or URL */}
                   <div>
                     <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                      {t('backgroundImage', language)}
+                      Background Image
                     </label>
-                    <input
-                      type="text"
-                      placeholder="https://example.com/wallpaper.jpg"
-                      value={settings.standbyBackgroundUrl || ''}
-                      onChange={(e) => updateSettings({ standbyBackgroundUrl: e.target.value })}
-                      style={{
-                        width: '100%', maxWidth: '500px', padding: '10px 14px',
-                        background: 'var(--bg-card)', border: '1px solid var(--border-color)',
-                        borderRadius: '8px', color: 'var(--text-primary)', fontSize: '13px',
-                        outline: 'none'
-                      }}
-                    />
-                    {settings.standbyBackgroundUrl && (
-                      <div style={{ marginTop: '8px', width: '160px', height: '90px', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
-                        <img
-                          src={settings.standbyBackgroundUrl}
-                          alt="Preview"
-                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                          onError={(e) => { e.target.style.display = 'none'; }}
+
+                    {/* Upload button + URL input row */}
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '8px' }}>
+                      <label style={{
+                        display: 'inline-flex', alignItems: 'center', gap: '6px',
+                        padding: '10px 16px', borderRadius: '8px',
+                        background: 'var(--accent-glow)', border: '1px solid var(--accent-primary)',
+                        color: 'var(--accent-primary)', fontSize: '13px', fontWeight: '600',
+                        cursor: 'pointer', whiteSpace: 'nowrap'
+                      }}>
+                        <Upload size={14} />
+                        Upload Image
+                        <input
+                          type="file"
+                          accept="image/*"
+                          style={{ display: 'none' }}
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            if (file.size > 20 * 1024 * 1024) {
+                              alert('File too large (max 20MB)');
+                              return;
+                            }
+                            try {
+                              const formData = new FormData();
+                              formData.append('image', file);
+                              const res = await fetch('/api/upload', { method: 'POST', body: formData });
+                              const data = await res.json();
+                              if (data.ok && data.url) {
+                                updateSettings({ standbyBackgroundUrl: data.url });
+                              } else {
+                                alert(data.error || 'Upload failed');
+                              }
+                            } catch (err) {
+                              alert('Upload failed: ' + err.message);
+                            }
+                            e.target.value = '';
+                          }}
                         />
+                      </label>
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>or</span>
+                      <input
+                        type="text"
+                        placeholder="https://example.com/wallpaper.jpg"
+                        value={settings.standbyBackgroundUrl || ''}
+                        onChange={(e) => updateSettings({ standbyBackgroundUrl: e.target.value })}
+                        style={{
+                          flex: 1, minWidth: '200px', padding: '10px 14px',
+                          background: 'var(--bg-card)', border: '1px solid var(--border-color)',
+                          borderRadius: '8px', color: 'var(--text-primary)', fontSize: '13px',
+                          outline: 'none'
+                        }}
+                      />
+                    </div>
+
+                    {/* Preview + remove */}
+                    {settings.standbyBackgroundUrl && (
+                      <div style={{ display: 'flex', alignItems: 'flex-end', gap: '10px', marginTop: '4px' }}>
+                        <div style={{ width: '180px', height: '100px', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border-color)', flexShrink: 0 }}>
+                          <img
+                            src={settings.standbyBackgroundUrl}
+                            alt="Preview"
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            onError={(e) => { e.target.style.display = 'none'; }}
+                          />
+                        </div>
+                        <button
+                          onClick={async () => {
+                            // If it's an uploaded file, delete from server
+                            if (settings.standbyBackgroundUrl?.startsWith('/uploads/')) {
+                              try { await fetch('/api/upload', { method: 'DELETE' }); } catch (e) {}
+                            }
+                            updateSettings({ standbyBackgroundUrl: '' });
+                          }}
+                          style={{
+                            padding: '6px 12px', borderRadius: '6px',
+                            background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
+                            color: '#ef4444', fontSize: '12px', cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', gap: '4px'
+                          }}
+                        >
+                          <Trash2 size={12} /> Remove
+                        </button>
                       </div>
                     )}
                   </div>
