@@ -85,6 +85,16 @@ const setupTranslations = {
   autoScrollDesc: { en: 'Automatically cycle through panels', it: 'Cicla automaticamente tra i pannelli', es: 'Cicla automáticamente entre paneles', fr: 'Faire défiler automatiquement les panneaux', pt: 'Ciclar automaticamente pelos painéis', de: 'Automatisch durch Panels wechseln', nl: 'Automatisch door panelen bladeren' },
   scrollInterval: { en: 'Scroll interval', it: 'Intervallo scorrimento', es: 'Intervalo de desplazamiento', fr: 'Intervalle de défilement', pt: 'Intervalo de rolagem', de: 'Scrollintervall', nl: 'Scroll-interval' },
 
+  // Standby Mode
+  standbyMode: { en: 'Standby Mode', it: 'Modalit\u00e0 Standby', es: 'Modo Standby', fr: 'Mode Veille', pt: 'Modo Standby', de: 'Standby-Modus', nl: 'Standby-modus' },
+  standbyDesc: { en: 'Show a screensaver with background image after idle', it: 'Mostra uno screensaver dopo un periodo di inattivit\u00e0', es: 'Mostrar un salvapantallas tras inactividad', fr: "Afficher un \u00e9cran de veille apr\u00e8s inactivit\u00e9", pt: 'Mostrar prote\u00e7\u00e3o de tela ap\u00f3s inatividade', de: 'Bildschirmschoner nach Inaktivit\u00e4t anzeigen', nl: 'Screensaver tonen na inactiviteit' },
+  idleTimeout: { en: 'Idle timeout', it: 'Timeout inattivit\u00e0', es: 'Tiempo de espera', fr: "D\u00e9lai d'inactivit\u00e9", pt: 'Tempo de inatividade', de: 'Leerlauf-Timeout', nl: 'Time-out bij inactiviteit' },
+  backgroundImage: { en: 'Background Image URL', it: 'URL immagine di sfondo', es: 'URL de imagen de fondo', fr: "URL de l'image de fond", pt: 'URL da imagem de fundo', de: 'Hintergrundbild-URL', nl: 'Achtergrondafbeelding URL' },
+  backgroundPreset: { en: 'Background Preset', it: 'Sfondo predefinito', es: 'Fondo predefinido', fr: 'Fond pr\u00e9d\u00e9fini', pt: 'Fundo predefinido', de: 'Hintergrund-Voreinstellung', nl: 'Achtergrond-voorinstelling' },
+  infoOverlays: { en: 'Info Overlays', it: 'Overlay informativi', es: 'Superposiciones', fr: 'Superpositions', pt: 'Sobreposi\u00e7\u00f5es', de: 'Info-Overlays', nl: 'Info-overlays' },
+  overlayPosition: { en: 'Overlay Position', it: 'Posizione overlay', es: 'Posici\u00f3n', fr: 'Position', pt: 'Posi\u00e7\u00e3o', de: 'Overlay-Position', nl: 'Overlay-positie' },
+  dimLevel: { en: 'Background dim', it: 'Oscuramento sfondo', es: 'Oscurecimiento', fr: 'Assombrissement', pt: 'Escurecimento', de: 'Abdunklung', nl: 'Achtergrond dimmen' },
+
   // Panel order
   panelOrder: { en: 'Panel Order', it: 'Ordine Pannelli', es: 'Orden de Paneles', fr: 'Ordre des Panneaux', pt: 'Ordem dos Painéis', de: 'Panel-Reihenfolge', nl: 'Paneel-volgorde' },
   dragToReorder: { en: 'Drag to reorder. Toggle to enable/disable.', it: 'Trascina per riordinare. Attiva/disattiva per abilitare/disabilitare.', es: 'Arrastra para reordenar. Alterna para activar/desactivar.', fr: 'Glissez pour réorganiser. Basculez pour activer/désactiver.', pt: 'Arraste para reordenar. Alterne para ativar/desativar.', de: 'Ziehen zum Neuordnen. Umschalten zum Aktivieren/Deaktivieren.', nl: 'Sleep om te herschikken. Schakel om in/uit te schakelen.' },
@@ -3153,6 +3163,195 @@ export default function Setup() {
                   ))}
                 </div>
               </div>
+            </div>
+
+            {/* ── Standby Mode ── */}
+            <h3>{t('standbyMode', language)}</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', background: 'var(--bg-secondary)', borderRadius: '12px', padding: '20px' }}>
+
+              {/* Enable toggle */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontWeight: '500', marginBottom: '4px' }}>{t('standbyMode', language)}</div>
+                  <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{t('standbyDesc', language)}</div>
+                </div>
+                <Toggle checked={settings.standbyEnabled} onChange={(standbyEnabled) => updateSettings({ standbyEnabled })} />
+              </div>
+
+              {settings.standbyEnabled && (
+                <>
+                  {/* Idle timeout */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                      {t('idleTimeout', language)}: {(() => {
+                        const mins = settings.standbyIdleMinutes || 300;
+                        const h = Math.floor(mins / 60);
+                        const m = mins % 60;
+                        return h > 0 ? `${h}h${m > 0 ? ` ${m}m` : ''}` : `${m}m`;
+                      })()}
+                    </label>
+                    <input
+                      type="range" min="15" max="720" step="15"
+                      value={settings.standbyIdleMinutes || 300}
+                      onChange={(e) => updateSettings({ standbyIdleMinutes: parseInt(e.target.value) })}
+                      style={{ width: '100%', maxWidth: '300px', accentColor: 'var(--accent-primary)' }}
+                    />
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
+                      {[
+                        { label: '15m', value: 15 },
+                        { label: '30m', value: 30 },
+                        { label: '1h', value: 60 },
+                        { label: '2h', value: 120 },
+                        { label: '3h', value: 180 },
+                        { label: '5h', value: 300 },
+                        { label: '8h', value: 480 },
+                        { label: '12h', value: 720 }
+                      ].map(opt => (
+                        <button
+                          key={opt.value}
+                          onClick={() => updateSettings({ standbyIdleMinutes: opt.value })}
+                          style={{
+                            padding: '6px 12px', borderRadius: '6px',
+                            border: `1px solid ${(settings.standbyIdleMinutes || 300) === opt.value ? 'var(--accent-primary)' : 'var(--border-color)'}`,
+                            background: (settings.standbyIdleMinutes || 300) === opt.value ? 'var(--accent-glow)' : 'var(--bg-card)',
+                            color: (settings.standbyIdleMinutes || 300) === opt.value ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                            cursor: 'pointer', fontSize: '12px', fontWeight: '500'
+                          }}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Background Image URL */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                      {t('backgroundImage', language)}
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="https://example.com/wallpaper.jpg"
+                      value={settings.standbyBackgroundUrl || ''}
+                      onChange={(e) => updateSettings({ standbyBackgroundUrl: e.target.value })}
+                      style={{
+                        width: '100%', maxWidth: '500px', padding: '10px 14px',
+                        background: 'var(--bg-card)', border: '1px solid var(--border-color)',
+                        borderRadius: '8px', color: 'var(--text-primary)', fontSize: '13px',
+                        outline: 'none'
+                      }}
+                    />
+                    {settings.standbyBackgroundUrl && (
+                      <div style={{ marginTop: '8px', width: '160px', height: '90px', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+                        <img
+                          src={settings.standbyBackgroundUrl}
+                          alt="Preview"
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          onError={(e) => { e.target.style.display = 'none'; }}
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Background Presets */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                      {t('backgroundPreset', language)}
+                    </label>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      {[
+                        { id: 'none', name: 'Black', bg: '#000' },
+                        { id: 'gradient-1', name: 'Deep Space', bg: 'linear-gradient(135deg, #0c0c1d 0%, #1a1a3e 50%, #0d0d2b 100%)' },
+                        { id: 'gradient-2', name: 'Ocean Night', bg: 'linear-gradient(135deg, #0a1628 0%, #1e3a5f 50%, #0a1628 100%)' },
+                        { id: 'gradient-3', name: 'Purple Nebula', bg: 'linear-gradient(135deg, #1a0a2e 0%, #2d1b4e 50%, #1a0a2e 100%)' }
+                      ].map(preset => (
+                        <button
+                          key={preset.id}
+                          onClick={() => updateSettings({ standbyBackgroundPreset: preset.id })}
+                          style={{
+                            width: '90px', height: '52px', borderRadius: '8px',
+                            background: preset.bg,
+                            border: `2px solid ${(settings.standbyBackgroundPreset || 'none') === preset.id ? 'var(--accent-primary)' : 'rgba(255,255,255,0.1)'}`,
+                            cursor: 'pointer', display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+                            paddingBottom: '4px', transition: 'border-color 0.2s'
+                          }}
+                        >
+                          <span style={{ fontSize: '9px', color: 'rgba(255,255,255,0.7)', fontWeight: '500' }}>{preset.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
+                      Image URL overrides preset when provided
+                    </div>
+                  </div>
+
+                  {/* Overlay toggles */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '10px' }}>
+                      {t('infoOverlays', language)}
+                    </label>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px', maxWidth: '400px' }}>
+                      {[
+                        { key: 'clock', label: 'Clock' },
+                        { key: 'date', label: 'Date' },
+                        { key: 'countdowns', label: 'Countdowns' },
+                        { key: 'tautulliActivity', label: 'Plex Activity' }
+                      ].map(ov => (
+                        <div key={ov.key} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 12px', background: 'var(--bg-card)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                          <Toggle
+                            checked={settings.standbyOverlays?.[ov.key] ?? false}
+                            onChange={(val) => updateSettings({ standbyOverlays: { ...(settings.standbyOverlays || {}), [ov.key]: val } })}
+                          />
+                          <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{ov.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Overlay position */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                      {t('overlayPosition', language)}
+                    </label>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      {[
+                        { id: 'bottom-left', label: 'Bottom Left' },
+                        { id: 'bottom-right', label: 'Bottom Right' },
+                        { id: 'top-left', label: 'Top Left' },
+                        { id: 'top-right', label: 'Top Right' },
+                        { id: 'center-bottom', label: 'Center' }
+                      ].map(pos => (
+                        <button
+                          key={pos.id}
+                          onClick={() => updateSettings({ standbyOverlayPosition: pos.id })}
+                          style={{
+                            padding: '6px 14px', borderRadius: '6px',
+                            border: `1px solid ${(settings.standbyOverlayPosition || 'bottom-left') === pos.id ? 'var(--accent-primary)' : 'var(--border-color)'}`,
+                            background: (settings.standbyOverlayPosition || 'bottom-left') === pos.id ? 'var(--accent-glow)' : 'var(--bg-card)',
+                            color: (settings.standbyOverlayPosition || 'bottom-left') === pos.id ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                            cursor: 'pointer', fontSize: '12px', fontWeight: '500'
+                          }}
+                        >
+                          {pos.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Dim opacity */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                      {t('dimLevel', language)}: {Math.round((settings.standbyDimOpacity ?? 0.4) * 100)}%
+                    </label>
+                    <input
+                      type="range" min="0" max="80" step="5"
+                      value={Math.round((settings.standbyDimOpacity ?? 0.4) * 100)}
+                      onChange={(e) => updateSettings({ standbyDimOpacity: parseInt(e.target.value) / 100 })}
+                      style={{ width: '100%', maxWidth: '300px', accentColor: 'var(--accent-primary)' }}
+                    />
+                  </div>
+                </>
+              )}
             </div>
 
             <h3>Sync & Backup</h3>

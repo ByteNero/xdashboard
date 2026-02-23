@@ -19,6 +19,7 @@ import {
   MarketsPanel,
   UniFiPanel
 } from '../components/panels';
+import StandbyOverlay from '../components/StandbyOverlay';
 import { Loader2 } from 'lucide-react';
 
 const panelComponents = {
@@ -202,6 +203,9 @@ export default function Display() {
           </div>
         </div>
       )}
+
+      {/* Standby / Screensaver overlay */}
+      <StandbyOverlay />
 
       {/* Subtle brand watermark */}
       <div style={{

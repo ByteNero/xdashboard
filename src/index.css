@@ -747,3 +747,149 @@ html, body {
   color: var(--text-muted);
   margin-top: 6px;
 }
+
+/* ============================================
+   Standby / Screensaver Mode
+   ============================================ */
+
+.standby-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 99999;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 1.5s ease-in-out;
+}
+
+.standby-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+  cursor: none;
+}
+
+.standby-dim {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  pointer-events: none;
+}
+
+.standby-info {
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 420px;
+}
+
+.standby-clock {
+  font-family: var(--font-display, sans-serif);
+  font-size: 72px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.9);
+  line-height: 1;
+  text-shadow: 0 2px 30px rgba(0, 0, 0, 0.6);
+  letter-spacing: -1px;
+}
+
+.standby-date {
+  font-family: var(--font-body, sans-serif);
+  font-size: 18px;
+  color: rgba(255, 255, 255, 0.55);
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.5);
+  margin-bottom: 16px;
+  text-transform: capitalize;
+}
+
+.standby-countdowns {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.standby-countdown-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 10px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.standby-countdown-name {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+  font-family: var(--font-body, sans-serif);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.standby-countdown-time {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent-primary);
+  font-family: var(--font-mono, monospace);
+  white-space: nowrap;
+}
+
+.standby-tautulli {
+  padding: 10px 14px;
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 10px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  margin-top: 4px;
+}
+
+.standby-tautulli-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--accent-primary);
+  font-family: var(--font-display, sans-serif);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.standby-tautulli-stream {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+  padding: 3px 0;
+  overflow: hidden;
+}
+
+.standby-tautulli-user {
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.standby-tautulli-user::after {
+  content: ' \2014 ';
+  color: rgba(255, 255, 255, 0.25);
+}
+
+.standby-tautulli-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
