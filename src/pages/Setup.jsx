@@ -3191,20 +3191,20 @@ export default function Setup() {
                       })()}
                     </label>
                     <input
-                      type="range" min="15" max="720" step="15"
+                      type="range" min="1" max="720" step="1"
                       value={settings.standbyIdleMinutes || 300}
                       onChange={(e) => updateSettings({ standbyIdleMinutes: parseInt(e.target.value) })}
                       style={{ width: '100%', maxWidth: '300px', accentColor: 'var(--accent-primary)' }}
                     />
                     <div style={{ display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
                       {[
+                        { label: '1m', value: 1 },
+                        { label: '5m', value: 5 },
                         { label: '15m', value: 15 },
                         { label: '30m', value: 30 },
                         { label: '1h', value: 60 },
                         { label: '2h', value: 120 },
-                        { label: '3h', value: 180 },
                         { label: '5h', value: 300 },
-                        { label: '8h', value: 480 },
                         { label: '12h', value: 720 }
                       ].map(opt => (
                         <button

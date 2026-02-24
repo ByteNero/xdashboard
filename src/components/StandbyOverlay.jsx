@@ -53,6 +53,7 @@ export default function StandbyOverlay() {
   const [tautulliData, setTautulliData] = useState(null);
   const [bgLoaded, setBgLoaded] = useState(false);
   const idleTimerRef = useRef(null);
+  const isStandbyRef = useRef(false);
 
   const {
     standbyEnabled = false,
@@ -65,43 +66,70 @@ export default function StandbyOverlay() {
     language = 'en-GB'
   } = settings || {};
 
+  // Keep ref in sync with state
+  useEffect(() => {
+    isStandbyRef.current = isStandby;
+  }, [isStandby]);
+
   // ── Idle detection ──
-  const resetIdleTimer = useCallback(() => {
-    if (isStandby) {
+  // Use refs to avoid re-creating the handler on every state change.
+  // The handler reads isStandbyRef (ref) so it doesn't need isStandby in deps.
+  const idleMsRef = useRef((standbyIdleMinutes || 300) * 60 * 1000);
+  useEffect(() => {
+    idleMsRef.current = (standbyIdleMinutes || 300) * 60 * 1000;
+  }, [standbyIdleMinutes]);
+
+  const startIdleTimer = useCallback(() => {
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    idleTimerRef.current = setTimeout(() => {
+      console.log('[Standby] Idle timeout reached, activating standby');
+      isStandbyRef.current = true;
+      setIsStandby(true);
+    }, idleMsRef.current);
+  }, []);
+
+  const handleInteraction = useCallback(() => {
+    // If in standby, wake up
+    if (isStandbyRef.current) {
+      console.log('[Standby] Interaction detected, waking up');
+      isStandbyRef.current = false;
       setIsStandby(false);
     }
-
-    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-
-    if (standbyEnabled) {
-      const idleMs = (standbyIdleMinutes || 300) * 60 * 1000;
-      idleTimerRef.current = setTimeout(() => {
-        setIsStandby(true);
-      }, idleMs);
-    }
-  }, [isStandby, standbyEnabled, standbyIdleMinutes]);
+    // Reset the idle timer
+    startIdleTimer();
+  }, [startIdleTimer]);
 
   useEffect(() => {
     if (!standbyEnabled) {
       setIsStandby(false);
+      isStandbyRef.current = false;
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
       return;
     }
 
+    // Add event listeners
     INTERACTION_EVENTS.forEach(evt => {
-      document.addEventListener(evt, resetIdleTimer, { passive: true });
+      document.addEventListener(evt, handleInteraction, { passive: true });
     });
 
-    // Start initial timer
-    resetIdleTimer();
+    // Start the initial idle timer
+    console.log(`[Standby] Enabled, idle timeout: ${idleMsRef.current / 1000}s`);
+    startIdleTimer();
 
     return () => {
       INTERACTION_EVENTS.forEach(evt => {
-        document.removeEventListener(evt, resetIdleTimer);
+        document.removeEventListener(evt, handleInteraction);
       });
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     };
-  }, [standbyEnabled, standbyIdleMinutes, resetIdleTimer]);
+  }, [standbyEnabled, handleInteraction, startIdleTimer]);
+
+  // Restart timer when idle minutes changes (e.g. user changes setting)
+  useEffect(() => {
+    if (standbyEnabled && !isStandbyRef.current) {
+      startIdleTimer();
+    }
+  }, [standbyIdleMinutes, standbyEnabled, startIdleTimer]);
 
   // ── Clock tick (only when standby active) ──
   useEffect(() => {
