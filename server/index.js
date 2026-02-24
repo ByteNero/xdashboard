@@ -467,14 +467,6 @@ app.post('/api/upload', (req, res) => {
         const safeName = `standby_${Date.now()}${ext}`;
         const filePath = path.join(UPLOADS_DIR, safeName);
 
-        // Delete any previous standby images to save space
-        try {
-          const existing = fs.readdirSync(UPLOADS_DIR).filter(f => f.startsWith('standby_'));
-          existing.forEach(f => {
-            try { fs.unlinkSync(path.join(UPLOADS_DIR, f)); } catch (e) {}
-          });
-        } catch (e) {}
-
         fs.writeFileSync(filePath, fileData);
         console.log(`[Upload] Saved ${safeName} (${(fileData.length / 1024).toFixed(1)}KB)`);
 
@@ -490,13 +482,34 @@ app.post('/api/upload', (req, res) => {
   res.status(400).json({ error: 'Unsupported content type. Use multipart/form-data.' });
 });
 
-// Delete uploaded file
+// List uploaded images
+app.get('/api/uploads', (req, res) => {
+  try {
+    const files = fs.readdirSync(UPLOADS_DIR)
+      .filter(f => /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(f))
+      .map(f => ({
+        name: f,
+        url: `/uploads/${f}`,
+        size: fs.statSync(path.join(UPLOADS_DIR, f)).size
+      }))
+      .sort((a, b) => b.name.localeCompare(a.name)); // newest first
+    res.json(files);
+  } catch (err) {
+    res.json([]);
+  }
+});
+
+// Delete a specific uploaded file
 app.delete('/api/upload', (req, res) => {
   try {
-    const existing = fs.readdirSync(UPLOADS_DIR).filter(f => f.startsWith('standby_'));
-    existing.forEach(f => {
-      try { fs.unlinkSync(path.join(UPLOADS_DIR, f)); } catch (e) {}
-    });
+    const fileName = req.query.file;
+    if (!fileName) return res.status(400).json({ error: 'file param required' });
+    // Sanitize — only allow filenames, no path traversal
+    const safeName = path.basename(fileName);
+    const filePath = path.join(UPLOADS_DIR, safeName);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
