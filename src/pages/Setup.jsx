@@ -3373,6 +3373,16 @@ export default function Setup() {
                         </div>
                       ))}
                     </div>
+                    {/* Stream details sub-toggle — only visible when Plex Activity is enabled */}
+                    {settings.standbyOverlays?.tautulliActivity && (
+                      <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 12px', background: 'var(--bg-card)', borderRadius: '8px', border: '1px solid var(--border-color)', maxWidth: '400px' }}>
+                        <Toggle
+                          checked={settings.standbyStreamDetails ?? true}
+                          onChange={(val) => updateSettings({ standbyStreamDetails: val })}
+                        />
+                        <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Show stream details (users &amp; titles)</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Overlay position */}

@@ -81,6 +81,7 @@ export default function StandbyOverlay() {
     standbyOverlays = {},
     standbyOverlayPosition = 'bottom-left',
     standbyDimOpacity = 0.4,
+    standbyStreamDetails = true,
     language = 'en-GB'
   } = settings || {};
 
@@ -302,10 +303,13 @@ export default function StandbyOverlay() {
           <div className="standby-card">
             {downServices.length > 0 ? (
               <>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: downServices.length <= 3 ? '6px' : 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
                   <AlertTriangle size={14} style={{ color: '#ef4444', flexShrink: 0 }} />
                   <span style={{ fontSize: '11px', color: '#ef4444', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                    {downServices.length} service{downServices.length !== 1 ? 's' : ''} down
+                    {downServices.length <= 3
+                      ? `${downServices.length} service${downServices.length !== 1 ? 's' : ''} down`
+                      : `${3}+ services down`
+                    }
                   </span>
                 </div>
                 {downServices.slice(0, 3).map((svc, i) => (
@@ -338,11 +342,11 @@ export default function StandbyOverlay() {
         {/* ── Tautulli Activity ── */}
         {standbyOverlays.tautulliActivity && streamCount > 0 && (
           <div className="standby-card">
-            <div className="standby-tautulli-header">
+            <div className="standby-tautulli-header" style={{ marginBottom: standbyStreamDetails ? '6px' : 0 }}>
               <Play size={12} style={{ fill: 'var(--accent-primary)', color: 'var(--accent-primary)' }} />
               <span>{streamCount} streaming</span>
             </div>
-            {streams.slice(0, 3).map((s, i) => (
+            {standbyStreamDetails && streams.slice(0, 3).map((s, i) => (
               <div key={i} className="standby-tautulli-stream">
                 <span className="standby-tautulli-user">{s.user}</span>
                 <span className="standby-tautulli-title">{s.grandparentTitle ? `${s.grandparentTitle} - ${s.title}` : s.title}</span>

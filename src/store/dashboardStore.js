@@ -294,7 +294,8 @@ export const useDashboardStore = create(
         standbyBackgroundPreset: 'none',
         standbyOverlays: { clock: true, date: true, countdowns: false, tautulliActivity: false, weather: false, lights: false, services: false, extraClocks: false },
         standbyOverlayPosition: 'bottom-left',
-        standbyDimOpacity: 0.4
+        standbyDimOpacity: 0.4,
+        standbyStreamDetails: true
       },
       connectionStatus: {
         homeAssistant: { connected: false, error: null },
