@@ -67,7 +67,7 @@ export default function StandbyOverlay() {
   const [tautulliData, setTautulliData] = useState(null);
   const [weatherData, setWeatherData] = useState(null);
   const [monitors, setMonitors] = useState([]);
-  const [lightsOnList, setLightsOnList] = useState([]);
+  const [lightsOn, setLightsOn] = useState(0);
   const [lightsTotal, setLightsTotal] = useState(0);
   const [bgLoaded, setBgLoaded] = useState(false);
   const idleTimerRef = useRef(null);
@@ -177,7 +177,7 @@ export default function StandbyOverlay() {
   // ── Home Assistant lights polling ──
   useEffect(() => {
     if (!isStandby || !standbyOverlays.lights) return;
-    if (!homeAssistant.isConnected()) { setLightsOnList([]); setLightsTotal(0); return; }
+    if (!homeAssistant.isConnected()) { setLightsOn(0); setLightsTotal(0); return; }
 
     const updateLights = () => {
       const entities = homeAssistant.entities || {};
@@ -191,10 +191,7 @@ export default function StandbyOverlay() {
         return true;
       });
       setLightsTotal(lights.length);
-      const onLights = lights
-        .filter(e => e.state === 'on')
-        .map(e => e.attributes?.friendly_name || e.entity_id.replace('light.', '').replace(/_/g, ' '));
-      setLightsOnList(onLights);
+      setLightsOn(lights.filter(e => e.state === 'on').length);
     };
 
     updateLights();
@@ -282,32 +279,21 @@ export default function StandbyOverlay() {
         {/* ── Lights On ── */}
         {standbyOverlays.lights && homeAssistant.isConnected() && (
           <div className="standby-card">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: lightsOnList.length > 0 ? '6px' : 0 }}>
-              <Lightbulb size={16} style={{ color: lightsOnList.length > 0 ? '#facc15' : 'rgba(255,255,255,0.3)' }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Lightbulb size={16} style={{ color: lightsOn > 0 ? '#facc15' : 'rgba(255,255,255,0.3)' }} />
               <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.7)' }}>
-                {lightsOnList.length > 0 ? (
-                  <><span style={{ color: '#facc15', fontWeight: '600' }}>{lightsOnList.length}</span> light{lightsOnList.length !== 1 ? 's' : ''} on</>
+                {lightsOn > 0 ? (
+                  <><span style={{ color: '#facc15', fontWeight: '600' }}>{lightsOn}</span> light{lightsOn !== 1 ? 's' : ''} on</>
                 ) : (
                   'All lights off'
                 )}
               </span>
               {lightsTotal > 0 && (
                 <span style={{ marginLeft: 'auto', fontSize: '11px', color: 'rgba(255,255,255,0.3)', fontFamily: 'var(--font-mono, monospace)' }}>
-                  {lightsOnList.length}/{lightsTotal}
+                  {lightsOn}/{lightsTotal}
                 </span>
               )}
             </div>
-            {lightsOnList.length > 0 && lightsOnList.slice(0, 5).map((name, i) => (
-              <div key={i} style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', padding: '2px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#facc15', flexShrink: 0 }} />
-                {name}
-              </div>
-            ))}
-            {lightsOnList.length > 5 && (
-              <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', paddingTop: '2px' }}>
-                +{lightsOnList.length - 5} more
-              </div>
-            )}
           </div>
         )}
 
