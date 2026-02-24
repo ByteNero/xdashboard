@@ -2,19 +2,8 @@ import { useState, useEffect } from 'react';
 import { Cloud, MapPin, Droplets, Snowflake } from 'lucide-react';
 import { weather as weatherService } from '../../services';
 import { useDashboardStore } from '../../store/dashboardStore';
+import { WeatherIcon } from '../../utils/weatherIcons.jsx';
 import PanelHeader from './PanelHeader';
-
-const weatherIcons = {
-  '01d': '☀️', '01n': '🌙',
-  '02d': '⛅', '02n': '☁️',
-  '03d': '☁️', '03n': '☁️',
-  '04d': '☁️', '04n': '☁️',
-  '09d': '🌧️', '09n': '🌧️',
-  '10d': '🌦️', '10n': '🌧️',
-  '11d': '⛈️', '11n': '⛈️',
-  '13d': '❄️', '13n': '❄️',
-  '50d': '🌫️', '50n': '🌫️'
-};
 
 export default function WeatherPanel({ config }) {
   const [weatherData, setWeatherData] = useState(null);
@@ -156,8 +145,8 @@ function WeatherCard({ weather, unitSymbol, units, compact = false }) {
   return (
     <>
       <div className="weather-main" style={compact ? { padding: '5px 0' } : {}}>
-        <div className="weather-icon" style={compact ? { fontSize: '40px', marginBottom: '4px' } : {}}>
-          {weatherIcons[weather.icon] || '☁️'}
+        <div className="weather-icon" style={compact ? { marginBottom: '4px' } : {}}>
+          <WeatherIcon icon={weather.icon} size={compact ? 48 : 64} />
         </div>
         <div className="weather-temp" style={compact ? { fontSize: '42px' } : {}}>
           {weather.temp}

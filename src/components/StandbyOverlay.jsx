@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Users, Play, AlertTriangle, Lightbulb, Globe } from 'lucide-react';
 import { useDashboardStore } from '../store/dashboardStore';
 import { tautulli, homeAssistant, uptimeKuma, weather } from '../services';
+import { WeatherIcon } from '../utils/weatherIcons.jsx';
 
 // ── Constants ──
 
@@ -19,14 +20,6 @@ const POSITION_STYLES = {
   'top-left':       { top: '48px', left: '48px' },
   'top-right':      { top: '48px', right: '48px', textAlign: 'right', alignItems: 'flex-end' },
   'center-bottom':  { bottom: '48px', left: '50%', transform: 'translateX(-50%)', textAlign: 'center', alignItems: 'center' },
-};
-
-const WEATHER_ICONS = {
-  '01d': '☀️', '01n': '🌙', '02d': '⛅', '02n': '☁️',
-  '03d': '☁️', '03n': '☁️', '04d': '☁️', '04n': '☁️',
-  '09d': '🌧️', '09n': '🌧️', '10d': '🌦️', '10n': '🌧️',
-  '11d': '⛈️', '11n': '⛈️', '13d': '❄️', '13n': '❄️',
-  '50d': '🌫️', '50n': '🌫️'
 };
 
 // ── Sub-components ──
@@ -269,8 +262,8 @@ export default function StandbyOverlay() {
         {standbyOverlays.weather && currentWeather && (
           <div className="standby-card">
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-              <span style={{ fontSize: '28px', lineHeight: 1, flexShrink: 0 }}>
-                {WEATHER_ICONS[currentWeather.icon] || '☁️'}
+              <span style={{ flexShrink: 0 }}>
+                <WeatherIcon icon={currentWeather.icon} size={42} />
               </span>
               <div style={{ minWidth: 0, flex: 1 }}>
                 <div style={{ fontSize: '22px', fontWeight: '700', color: 'rgba(255,255,255,0.9)' }}>

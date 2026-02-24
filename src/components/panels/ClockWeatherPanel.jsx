@@ -2,19 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Clock as ClockIcon, Globe, Droplets, Wind, MapPin, Calendar, Timer } from 'lucide-react';
 import { useDashboardStore } from '../../store/dashboardStore';
 import { weather as weatherService } from '../../services';
+import { WeatherIcon } from '../../utils/weatherIcons.jsx';
 import PanelHeader from './PanelHeader';
-
-const weatherIcons = {
-  '01d': '☀️', '01n': '🌙',
-  '02d': '⛅', '02n': '☁️',
-  '03d': '☁️', '03n': '☁️',
-  '04d': '☁️', '04n': '☁️',
-  '09d': '🌧️', '09n': '🌧️',
-  '10d': '🌦️', '10n': '🌧️',
-  '11d': '⛈️', '11n': '⛈️',
-  '13d': '❄️', '13n': '❄️',
-  '50d': '🌫️', '50n': '🌫️'
-};
 
 // Parse iCal format (simplified)
 function parseICal(icalData) {
@@ -331,7 +320,7 @@ export default function ClockWeatherPanel({ config }) {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px' }}>
                 {/* Weather icon and temp */}
                 <div style={{ textAlign: 'center' }}>
-                  <span style={{ fontSize: '28px' }}>{weatherIcons[currentWeather.icon] || '☁️'}</span>
+                  <WeatherIcon icon={currentWeather.icon} size={40} />
                   <div style={{ fontSize: '20px', fontWeight: '700', fontFamily: 'var(--font-display)', marginTop: '2px' }}>
                     {currentWeather.temp}°{unitSymbol}
                   </div>
