@@ -144,6 +144,17 @@ export default function StandbyOverlay() {
     }
   }, [standbyIdleMinutes, standbyEnabled, startIdleTimer]);
 
+  // ── Reset overlay data on standby enter (prevents stale data flash) ──
+  useEffect(() => {
+    if (isStandby) {
+      setTautulliData(null);
+      setWeatherData(null);
+      setMonitors([]);
+      setLightsOn(0);
+      setLightsTotal(0);
+    }
+  }, [isStandby]);
+
   // ── Clock tick (only when standby active) ──
   useEffect(() => {
     if (!isStandby) return;
@@ -200,13 +211,16 @@ export default function StandbyOverlay() {
     return () => clearInterval(interval);
   }, [isStandby, standbyOverlays.lights]);
 
-  // ── Preload background image ──
+  // ── Preload background image (with race condition guard) ──
   useEffect(() => {
     if (!standbyBackgroundUrl) { setBgLoaded(false); return; }
+    let cancelled = false;
     const img = new Image();
-    img.onload = () => setBgLoaded(true);
-    img.onerror = () => setBgLoaded(false);
+    img.onload = () => { if (!cancelled) setBgLoaded(true); };
+    img.onerror = () => { if (!cancelled) setBgLoaded(false); };
     img.src = standbyBackgroundUrl;
+    setBgLoaded(false);
+    return () => { cancelled = true; };
   }, [standbyBackgroundUrl]);
 
   // ── Don't render if not enabled or not in standby ──
