@@ -253,20 +253,20 @@ export default function StandbyOverlay() {
         {/* ── Weather ── */}
         {standbyOverlays.weather && currentWeather && (
           <div className="standby-card">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ fontSize: '28px', lineHeight: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+              <span style={{ fontSize: '28px', lineHeight: 1, flexShrink: 0 }}>
                 {WEATHER_ICONS[currentWeather.icon] || '☁️'}
               </span>
-              <div>
+              <div style={{ minWidth: 0, flex: 1 }}>
                 <div style={{ fontSize: '22px', fontWeight: '700', color: 'rgba(255,255,255,0.9)' }}>
                   {Math.round(currentWeather.temp)}°
                 </div>
-                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', textTransform: 'capitalize' }}>
+                <div className="standby-truncate" style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', textTransform: 'capitalize' }}>
                   {currentWeather.description}
                 </div>
               </div>
               {(currentWeather.high != null || currentWeather.low != null) && (
-                <div style={{ marginLeft: 'auto', fontSize: '11px', color: 'rgba(255,255,255,0.4)', fontFamily: 'var(--font-mono, monospace)' }}>
+                <div style={{ flexShrink: 0, fontSize: '11px', color: 'rgba(255,255,255,0.4)', fontFamily: 'var(--font-mono, monospace)' }}>
                   {currentWeather.high != null && <span>↑{Math.round(currentWeather.high)}°</span>}
                   {' '}
                   {currentWeather.low != null && <span>↓{Math.round(currentWeather.low)}°</span>}
@@ -303,21 +303,24 @@ export default function StandbyOverlay() {
             {downServices.length > 0 ? (
               <>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-                  <AlertTriangle size={14} style={{ color: '#ef4444' }} />
+                  <AlertTriangle size={14} style={{ color: '#ef4444', flexShrink: 0 }} />
                   <span style={{ fontSize: '11px', color: '#ef4444', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px' }}>
                     {downServices.length} service{downServices.length !== 1 ? 's' : ''} down
                   </span>
                 </div>
-                {downServices.slice(0, 4).map((svc, i) => (
-                  <div key={i} style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', padding: '2px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                {downServices.slice(0, 3).map((svc, i) => (
+                  <div key={i} className="standby-truncate" style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', padding: '2px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ef4444', flexShrink: 0 }} />
-                    {svc.name}
+                    <span className="standby-truncate">{svc.name}</span>
                   </div>
                 ))}
+                {downServices.length > 3 && (
+                  <div className="standby-more">+{downServices.length - 3} more</div>
+                )}
               </>
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#22c55e' }} />
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#22c55e', flexShrink: 0 }} />
                 <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>
                   All {monitors.length} services up
                 </span>
@@ -332,6 +335,9 @@ export default function StandbyOverlay() {
             {countdowns.slice(0, 3).map(cd => (
               <CountdownItem key={cd.id} countdown={cd} now={time} />
             ))}
+            {countdowns.length > 3 && (
+              <div className="standby-more">+{countdowns.length - 3} more</div>
+            )}
           </div>
         )}
 
@@ -348,6 +354,9 @@ export default function StandbyOverlay() {
                 <span className="standby-tautulli-title">{s.grandparentTitle ? `${s.grandparentTitle} - ${s.title}` : s.title}</span>
               </div>
             ))}
+            {streamCount > 3 && (
+              <div className="standby-more">+{streamCount - 3} more</div>
+            )}
           </div>
         )}
         {standbyOverlays.tautulliActivity && streamCount === 0 && tautulli.isConnected() && (
@@ -363,7 +372,7 @@ export default function StandbyOverlay() {
         {standbyOverlays.extraClocks && extraClocks.length > 0 && (
           <div className="standby-card">
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-              <Globe size={12} style={{ color: 'var(--accent-primary)' }} />
+              <Globe size={12} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
               <span style={{ fontSize: '11px', color: 'var(--accent-primary)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px' }}>
                 World Clocks
               </span>
@@ -371,11 +380,14 @@ export default function StandbyOverlay() {
             {extraClocks.slice(0, 4).map(clock => (
               <div key={clock.id} className="standby-card-row">
                 <span className="standby-card-label">{clock.name}</span>
-                <span className="standby-card-value" style={{ color: 'rgba(255,255,255,0.8)' }}>
+                <span className="standby-card-value" style={{ color: 'rgba(255,255,255,0.8)', flexShrink: 0 }}>
                   {time.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: clock.timezone })}
                 </span>
               </div>
             ))}
+            {extraClocks.length > 4 && (
+              <div className="standby-more">+{extraClocks.length - 4} more</div>
+            )}
           </div>
         )}
       </div>

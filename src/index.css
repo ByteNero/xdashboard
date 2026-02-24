@@ -785,7 +785,9 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-width: 420px;
+  max-width: 380px;
+  max-height: calc(100vh - 96px);
+  overflow: hidden;
 }
 
 .standby-clock {
@@ -815,6 +817,8 @@ html, body {
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+  min-width: 0;
 }
 
 .standby-card-row {
@@ -822,6 +826,20 @@ html, body {
   align-items: center;
   gap: 12px;
   padding: 3px 0;
+  min-width: 0;
+}
+
+.standby-truncate {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.standby-more {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.3);
+  padding-top: 2px;
 }
 
 .standby-card-label {
