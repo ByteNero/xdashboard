@@ -302,21 +302,18 @@ export default function StandbyOverlay() {
           <div className="standby-card">
             {downServices.length > 0 ? (
               <>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: downServices.length <= 3 ? '6px' : 0 }}>
                   <AlertTriangle size={14} style={{ color: '#ef4444', flexShrink: 0 }} />
                   <span style={{ fontSize: '11px', color: '#ef4444', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px' }}>
                     {downServices.length} service{downServices.length !== 1 ? 's' : ''} down
                   </span>
                 </div>
                 {downServices.slice(0, 3).map((svc, i) => (
-                  <div key={i} className="standby-truncate" style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', padding: '2px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <div key={i} style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', padding: '2px 0', display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
                     <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ef4444', flexShrink: 0 }} />
                     <span className="standby-truncate">{svc.name}</span>
                   </div>
                 ))}
-                {downServices.length > 3 && (
-                  <div className="standby-more">+{downServices.length - 3} more</div>
-                )}
               </>
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -335,9 +332,6 @@ export default function StandbyOverlay() {
             {countdowns.slice(0, 3).map(cd => (
               <CountdownItem key={cd.id} countdown={cd} now={time} />
             ))}
-            {countdowns.length > 3 && (
-              <div className="standby-more">+{countdowns.length - 3} more</div>
-            )}
           </div>
         )}
 
@@ -354,9 +348,6 @@ export default function StandbyOverlay() {
                 <span className="standby-tautulli-title">{s.grandparentTitle ? `${s.grandparentTitle} - ${s.title}` : s.title}</span>
               </div>
             ))}
-            {streamCount > 3 && (
-              <div className="standby-more">+{streamCount - 3} more</div>
-            )}
           </div>
         )}
         {standbyOverlays.tautulliActivity && streamCount === 0 && tautulli.isConnected() && (
@@ -376,6 +367,11 @@ export default function StandbyOverlay() {
               <span style={{ fontSize: '11px', color: 'var(--accent-primary)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px' }}>
                 World Clocks
               </span>
+              {extraClocks.length > 4 && (
+                <span style={{ marginLeft: 'auto', fontSize: '10px', color: 'rgba(255,255,255,0.3)' }}>
+                  +{extraClocks.length - 4} more
+                </span>
+              )}
             </div>
             {extraClocks.slice(0, 4).map(clock => (
               <div key={clock.id} className="standby-card-row">
@@ -385,9 +381,6 @@ export default function StandbyOverlay() {
                 </span>
               </div>
             ))}
-            {extraClocks.length > 4 && (
-              <div className="standby-more">+{extraClocks.length - 4} more</div>
-            )}
           </div>
         )}
       </div>

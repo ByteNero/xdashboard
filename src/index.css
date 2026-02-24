@@ -836,12 +836,6 @@ html, body {
   min-width: 0;
 }
 
-.standby-more {
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.3);
-  padding-top: 2px;
-}
-
 .standby-card-label {
   font-size: 13px;
   color: rgba(255, 255, 255, 0.7);
