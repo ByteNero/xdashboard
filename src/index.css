@@ -807,17 +807,9 @@ html, body {
   text-transform: capitalize;
 }
 
-.standby-countdowns {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.standby-countdown-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 14px;
+/* Unified glassmorphism card for all standby overlay widgets */
+.standby-card {
+  padding: 10px 14px;
   background: rgba(0, 0, 0, 0.45);
   border-radius: 10px;
   backdrop-filter: blur(12px);
@@ -825,7 +817,14 @@ html, body {
   border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-.standby-countdown-name {
+.standby-card-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 3px 0;
+}
+
+.standby-card-label {
   font-size: 13px;
   color: rgba(255, 255, 255, 0.7);
   font-family: var(--font-body, sans-serif);
@@ -835,7 +834,7 @@ html, body {
   white-space: nowrap;
 }
 
-.standby-countdown-time {
+.standby-card-value {
   font-size: 14px;
   font-weight: 600;
   color: var(--accent-primary);
@@ -843,16 +842,7 @@ html, body {
   white-space: nowrap;
 }
 
-.standby-tautulli {
-  padding: 10px 14px;
-  background: rgba(0, 0, 0, 0.45);
-  border-radius: 10px;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  margin-top: 4px;
-}
-
+/* Tautulli stream list */
 .standby-tautulli-header {
   display: flex;
   align-items: center;

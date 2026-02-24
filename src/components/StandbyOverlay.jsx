@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Users, Play } from 'lucide-react';
+import { Users, Play, AlertTriangle, Lightbulb, Globe } from 'lucide-react';
 import { useDashboardStore } from '../store/dashboardStore';
-import { tautulli } from '../services';
+import { tautulli, homeAssistant, uptimeKuma, weather } from '../services';
+
+// ── Constants ──
 
 const GRADIENT_PRESETS = {
   'gradient-1': 'linear-gradient(135deg, #0c0c1d 0%, #1a1a3e 50%, #0d0d2b 100%)',
@@ -19,7 +21,17 @@ const POSITION_STYLES = {
   'center-bottom':  { bottom: '48px', left: '50%', transform: 'translateX(-50%)', textAlign: 'center', alignItems: 'center' },
 };
 
-function CountdownItem({ countdown, now, language }) {
+const WEATHER_ICONS = {
+  '01d': '☀️', '01n': '🌙', '02d': '⛅', '02n': '☁️',
+  '03d': '☁️', '03n': '☁️', '04d': '☁️', '04n': '☁️',
+  '09d': '🌧️', '09n': '🌧️', '10d': '🌦️', '10n': '🌧️',
+  '11d': '⛈️', '11n': '⛈️', '13d': '❄️', '13n': '❄️',
+  '50d': '🌫️', '50n': '🌫️'
+};
+
+// ── Sub-components ──
+
+function CountdownItem({ countdown, now }) {
   const target = new Date(countdown.targetDate + 'T00:00:00');
   const diffMs = target - now;
   const isPast = diffMs <= 0;
@@ -37,20 +49,26 @@ function CountdownItem({ countdown, now, language }) {
       : `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 
   return (
-    <div className="standby-countdown-item">
-      <span className="standby-countdown-name">{countdown.name}</span>
-      <span className="standby-countdown-time" style={{ color: isPast ? 'rgba(255,255,255,0.3)' : 'var(--accent-primary)' }}>
+    <div className="standby-card-row">
+      <span className="standby-card-label">{countdown.name}</span>
+      <span className="standby-card-value" style={{ color: isPast ? 'rgba(255,255,255,0.3)' : 'var(--accent-primary)' }}>
         {timeStr}
       </span>
     </div>
   );
 }
 
+// ── Main Component ──
+
 export default function StandbyOverlay() {
   const { settings, integrations } = useDashboardStore();
   const [isStandby, setIsStandby] = useState(false);
   const [time, setTime] = useState(new Date());
   const [tautulliData, setTautulliData] = useState(null);
+  const [weatherData, setWeatherData] = useState(null);
+  const [monitors, setMonitors] = useState([]);
+  const [lightsOn, setLightsOn] = useState(0);
+  const [lightsTotal, setLightsTotal] = useState(0);
   const [bgLoaded, setBgLoaded] = useState(false);
   const idleTimerRef = useRef(null);
   const isStandbyRef = useRef(false);
@@ -71,9 +89,7 @@ export default function StandbyOverlay() {
     isStandbyRef.current = isStandby;
   }, [isStandby]);
 
-  // ── Idle detection ──
-  // Use refs to avoid re-creating the handler on every state change.
-  // The handler reads isStandbyRef (ref) so it doesn't need isStandby in deps.
+  // ── Idle detection (using refs for stable callbacks) ──
   const idleMsRef = useRef((standbyIdleMinutes || 300) * 60 * 1000);
   useEffect(() => {
     idleMsRef.current = (standbyIdleMinutes || 300) * 60 * 1000;
@@ -89,13 +105,11 @@ export default function StandbyOverlay() {
   }, []);
 
   const handleInteraction = useCallback(() => {
-    // If in standby, wake up
     if (isStandbyRef.current) {
       console.log('[Standby] Interaction detected, waking up');
       isStandbyRef.current = false;
       setIsStandby(false);
     }
-    // Reset the idle timer
     startIdleTimer();
   }, [startIdleTimer]);
 
@@ -107,12 +121,10 @@ export default function StandbyOverlay() {
       return;
     }
 
-    // Add event listeners
     INTERACTION_EVENTS.forEach(evt => {
       document.addEventListener(evt, handleInteraction, { passive: true });
     });
 
-    // Start the initial idle timer
     console.log(`[Standby] Enabled, idle timeout: ${idleMsRef.current / 1000}s`);
     startIdleTimer();
 
@@ -124,7 +136,7 @@ export default function StandbyOverlay() {
     };
   }, [standbyEnabled, handleInteraction, startIdleTimer]);
 
-  // Restart timer when idle minutes changes (e.g. user changes setting)
+  // Restart timer when idle minutes changes
   useEffect(() => {
     if (standbyEnabled && !isStandbyRef.current) {
       startIdleTimer();
@@ -141,24 +153,47 @@ export default function StandbyOverlay() {
   // ── Tautulli subscription ──
   useEffect(() => {
     if (!isStandby || !standbyOverlays.tautulliActivity) return;
-    if (!tautulli.isConnected()) {
-      setTautulliData(null);
-      return;
-    }
-
-    const unsub = tautulli.subscribe((data) => {
-      setTautulliData(data);
-    });
-
+    if (!tautulli.isConnected()) { setTautulliData(null); return; }
+    const unsub = tautulli.subscribe(data => setTautulliData(data));
     return () => unsub();
   }, [isStandby, standbyOverlays.tautulliActivity]);
 
+  // ── Weather subscription ──
+  useEffect(() => {
+    if (!isStandby || !standbyOverlays.weather) return;
+    if (!weather.isConnected()) { setWeatherData(null); return; }
+    const unsub = weather.subscribe(data => setWeatherData(data));
+    return () => unsub();
+  }, [isStandby, standbyOverlays.weather]);
+
+  // ── Uptime Kuma subscription ──
+  useEffect(() => {
+    if (!isStandby || !standbyOverlays.services) return;
+    if (!uptimeKuma.isConnected()) { setMonitors([]); return; }
+    const unsub = uptimeKuma.subscribe(data => setMonitors(data || []));
+    return () => unsub();
+  }, [isStandby, standbyOverlays.services]);
+
+  // ── Home Assistant lights polling ──
+  useEffect(() => {
+    if (!isStandby || !standbyOverlays.lights) return;
+    if (!homeAssistant.isConnected()) { setLightsOn(0); setLightsTotal(0); return; }
+
+    const updateLights = () => {
+      const entities = homeAssistant.entities || {};
+      const lights = Object.values(entities).filter(e => e.entity_id?.startsWith('light.'));
+      setLightsTotal(lights.length);
+      setLightsOn(lights.filter(e => e.state === 'on').length);
+    };
+
+    updateLights();
+    const interval = setInterval(updateLights, 5000);
+    return () => clearInterval(interval);
+  }, [isStandby, standbyOverlays.lights]);
+
   // ── Preload background image ──
   useEffect(() => {
-    if (!standbyBackgroundUrl) {
-      setBgLoaded(false);
-      return;
-    }
+    if (!standbyBackgroundUrl) { setBgLoaded(false); return; }
     const img = new Image();
     img.onload = () => setBgLoaded(true);
     img.onerror = () => setBgLoaded(false);
@@ -170,8 +205,11 @@ export default function StandbyOverlay() {
 
   // ── Data ──
   const countdowns = (integrations?.countdowns || []).filter(c => c.enabled && c.name && c.targetDate);
+  const extraClocks = (integrations?.clocks || []).filter(c => c.enabled && c.timezone);
   const streams = tautulliData?.activity?.streams || [];
   const streamCount = tautulliData?.activity?.streamCount || 0;
+  const currentWeather = weatherData?.current;
+  const downServices = monitors.filter(m => m.status === 'down');
 
   // ── Background style ──
   const backgroundStyle = (standbyBackgroundUrl && bgLoaded)
@@ -190,32 +228,108 @@ export default function StandbyOverlay() {
       {/* Info overlays */}
       <div className="standby-info" style={{ position: 'absolute', ...posStyle }}>
 
-        {/* Clock */}
+        {/* ── Clock ── */}
         {standbyOverlays.clock && (
           <div className="standby-clock">
             {time.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit', hour12: false })}
           </div>
         )}
 
-        {/* Date */}
+        {/* ── Date ── */}
         {standbyOverlays.date && (
           <div className="standby-date">
             {time.toLocaleDateString(language, { weekday: 'long', day: 'numeric', month: 'long' })}
           </div>
         )}
 
-        {/* Countdowns */}
+        {/* ── Weather ── */}
+        {standbyOverlays.weather && currentWeather && (
+          <div className="standby-card">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '28px', lineHeight: 1 }}>
+                {WEATHER_ICONS[currentWeather.icon] || '☁️'}
+              </span>
+              <div>
+                <div style={{ fontSize: '22px', fontWeight: '700', color: 'rgba(255,255,255,0.9)' }}>
+                  {Math.round(currentWeather.temp)}°
+                </div>
+                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', textTransform: 'capitalize' }}>
+                  {currentWeather.description}
+                </div>
+              </div>
+              {(currentWeather.high != null || currentWeather.low != null) && (
+                <div style={{ marginLeft: 'auto', fontSize: '11px', color: 'rgba(255,255,255,0.4)', fontFamily: 'var(--font-mono, monospace)' }}>
+                  {currentWeather.high != null && <span>↑{Math.round(currentWeather.high)}°</span>}
+                  {' '}
+                  {currentWeather.low != null && <span>↓{Math.round(currentWeather.low)}°</span>}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Lights On ── */}
+        {standbyOverlays.lights && homeAssistant.isConnected() && (
+          <div className="standby-card">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Lightbulb size={16} style={{ color: lightsOn > 0 ? '#facc15' : 'rgba(255,255,255,0.3)' }} />
+              <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.7)' }}>
+                {lightsOn > 0 ? (
+                  <><span style={{ color: '#facc15', fontWeight: '600' }}>{lightsOn}</span> light{lightsOn !== 1 ? 's' : ''} on</>
+                ) : (
+                  'All lights off'
+                )}
+              </span>
+              {lightsTotal > 0 && (
+                <span style={{ marginLeft: 'auto', fontSize: '11px', color: 'rgba(255,255,255,0.3)', fontFamily: 'var(--font-mono, monospace)' }}>
+                  {lightsOn}/{lightsTotal}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Services Down ── */}
+        {standbyOverlays.services && uptimeKuma.isConnected() && (
+          <div className="standby-card">
+            {downServices.length > 0 ? (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                  <AlertTriangle size={14} style={{ color: '#ef4444' }} />
+                  <span style={{ fontSize: '11px', color: '#ef4444', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                    {downServices.length} service{downServices.length !== 1 ? 's' : ''} down
+                  </span>
+                </div>
+                {downServices.slice(0, 4).map((svc, i) => (
+                  <div key={i} style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', padding: '2px 0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ef4444', flexShrink: 0 }} />
+                    {svc.name}
+                  </div>
+                ))}
+              </>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#22c55e' }} />
+                <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>
+                  All {monitors.length} services up
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Countdowns ── */}
         {standbyOverlays.countdowns && countdowns.length > 0 && (
-          <div className="standby-countdowns">
+          <div className="standby-card" style={{ padding: '8px 12px' }}>
             {countdowns.slice(0, 3).map(cd => (
-              <CountdownItem key={cd.id} countdown={cd} now={time} language={language} />
+              <CountdownItem key={cd.id} countdown={cd} now={time} />
             ))}
           </div>
         )}
 
-        {/* Tautulli Activity */}
+        {/* ── Tautulli Activity ── */}
         {standbyOverlays.tautulliActivity && streamCount > 0 && (
-          <div className="standby-tautulli">
+          <div className="standby-card">
             <div className="standby-tautulli-header">
               <Play size={12} style={{ fill: 'var(--accent-primary)', color: 'var(--accent-primary)' }} />
               <span>{streamCount} streaming</span>
@@ -228,14 +342,32 @@ export default function StandbyOverlay() {
             ))}
           </div>
         )}
-
-        {/* Tautulli — nothing playing */}
         {standbyOverlays.tautulliActivity && streamCount === 0 && tautulli.isConnected() && (
-          <div className="standby-tautulli">
-            <div className="standby-tautulli-header" style={{ opacity: 0.4 }}>
+          <div className="standby-card">
+            <div className="standby-tautulli-header" style={{ opacity: 0.4, marginBottom: 0 }}>
               <Users size={12} />
               <span>Nothing playing</span>
             </div>
+          </div>
+        )}
+
+        {/* ── Extra / World Clocks ── */}
+        {standbyOverlays.extraClocks && extraClocks.length > 0 && (
+          <div className="standby-card">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+              <Globe size={12} style={{ color: 'var(--accent-primary)' }} />
+              <span style={{ fontSize: '11px', color: 'var(--accent-primary)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                World Clocks
+              </span>
+            </div>
+            {extraClocks.slice(0, 4).map(clock => (
+              <div key={clock.id} className="standby-card-row">
+                <span className="standby-card-label">{clock.name}</span>
+                <span className="standby-card-value" style={{ color: 'rgba(255,255,255,0.8)' }}>
+                  {time.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: clock.timezone })}
+                </span>
+              </div>
+            ))}
           </div>
         )}
       </div>

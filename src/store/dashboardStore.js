@@ -292,7 +292,7 @@ export const useDashboardStore = create(
         standbyIdleMinutes: 300,
         standbyBackgroundUrl: '',
         standbyBackgroundPreset: 'none',
-        standbyOverlays: { clock: true, date: true, countdowns: false, tautulliActivity: false },
+        standbyOverlays: { clock: true, date: true, countdowns: false, tautulliActivity: false, weather: false, lights: false, services: false, extraClocks: false },
         standbyOverlayPosition: 'bottom-left',
         standbyDimOpacity: 0.4
       },
@@ -814,7 +814,7 @@ export const useDashboardStore = create(
             panels: [...(persistedState.panels || []), ...newPanels],
             integrations: mergedIntegrations,
             settings: {
-              ...{ autoScroll: false, autoScrollInterval: 10000, theme: 'corsair-dark', accentColor: '#00d4ff', fontStyle: 'tech', language: 'en-GB', panelHeight: 'auto', standbyEnabled: false, standbyIdleMinutes: 300, standbyBackgroundUrl: '', standbyBackgroundPreset: 'none', standbyOverlays: { clock: true, date: true, countdowns: false, tautulliActivity: false }, standbyOverlayPosition: 'bottom-left', standbyDimOpacity: 0.4 },
+              ...{ autoScroll: false, autoScrollInterval: 10000, theme: 'corsair-dark', accentColor: '#00d4ff', fontStyle: 'tech', language: 'en-GB', panelHeight: 'auto', standbyEnabled: false, standbyIdleMinutes: 300, standbyBackgroundUrl: '', standbyBackgroundPreset: 'none', standbyOverlays: { clock: true, date: true, countdowns: false, tautulliActivity: false, weather: false, lights: false, services: false, extraClocks: false }, standbyOverlayPosition: 'bottom-left', standbyDimOpacity: 0.4 },
               ...persistedState.settings
             }
           };
