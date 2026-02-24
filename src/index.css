@@ -785,7 +785,7 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-width: 380px;
+  width: 380px;
   max-height: calc(100vh - 96px);
   overflow: hidden;
 }
