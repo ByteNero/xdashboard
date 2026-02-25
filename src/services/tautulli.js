@@ -12,6 +12,8 @@ class TautulliService {
     this.stats = null;
     this.subscribers = new Set();
     this.pollInterval = null;
+    this._reconnecting = false;
+    this._visibilityHandler = null;
   }
 
   async connect(url, apiKey) {
@@ -105,13 +107,17 @@ class TautulliService {
 
   async fetchAll() {
     if (!this.connected) {
-      // Clear all data when disconnected so stale info doesn't persist
-      this.activity = { streamCount: 0, streams: [] };
-      this.recentlyAdded = [];
-      this.history = [];
-      this.stats = null;
-      this.notifySubscribers();
-      return;
+      // Try to reconnect instead of just clearing data
+      await this.attemptReconnect();
+      if (!this.connected) {
+        // Still disconnected after reconnect attempt — clear data
+        this.activity = { streamCount: 0, streams: [] };
+        this.recentlyAdded = [];
+        this.history = [];
+        this.stats = null;
+        this.notifySubscribers();
+        return;
+      }
     }
     await Promise.all([
       this.fetchActivity(),
@@ -120,6 +126,33 @@ class TautulliService {
       this.fetchStats()
     ]);
     this.notifySubscribers();
+  }
+
+  async attemptReconnect() {
+    if (this._reconnecting || !this.baseUrl || !this.apiKey) return;
+    this._reconnecting = true;
+
+    try {
+      console.log('[Tautulli] Attempting reconnect...');
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+
+      const testUrl = `${this.baseUrl}/api/v2?apikey=${this.apiKey}&cmd=arnold`;
+      const response = await proxyFetch(testUrl, { signal: controller.signal });
+      clearTimeout(timeout);
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data?.response?.result === 'success') {
+          console.log('[Tautulli] Reconnected successfully');
+          this.connected = true;
+        }
+      }
+    } catch (error) {
+      console.log('[Tautulli] Reconnect failed:', error.message);
+    } finally {
+      this._reconnecting = false;
+    }
   }
 
   async fetchActivity() {
@@ -286,12 +319,26 @@ class TautulliService {
     this.pollInterval = setInterval(() => {
       this.fetchAll();
     }, interval);
+
+    // Chrome throttles setInterval to ~1/min for background tabs.
+    // When the tab becomes visible again, immediately fetch fresh data.
+    this._visibilityHandler = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('[Tautulli] Tab visible — refreshing data');
+        this.fetchAll();
+      }
+    };
+    document.addEventListener('visibilitychange', this._visibilityHandler);
   }
 
   stopPolling() {
     if (this.pollInterval) {
       clearInterval(this.pollInterval);
       this.pollInterval = null;
+    }
+    if (this._visibilityHandler) {
+      document.removeEventListener('visibilitychange', this._visibilityHandler);
+      this._visibilityHandler = null;
     }
   }
 

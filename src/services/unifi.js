@@ -20,6 +20,7 @@ class UniFiService {
     this.subscribers = new Set();
     this.pollInterval = null;
     this._retrying = false;
+    this._visibilityHandler = null;
 
     // Data
     this.devices = [];
@@ -322,12 +323,24 @@ class UniFiService {
   startPolling(interval = 30000) {
     this.stopPolling();
     this.pollInterval = setInterval(() => this.fetchAll(), interval);
+
+    this._visibilityHandler = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('[UniFi] Tab visible — refreshing data');
+        this.fetchAll();
+      }
+    };
+    document.addEventListener('visibilitychange', this._visibilityHandler);
   }
 
   stopPolling() {
     if (this.pollInterval) {
       clearInterval(this.pollInterval);
       this.pollInterval = null;
+    }
+    if (this._visibilityHandler) {
+      document.removeEventListener('visibilitychange', this._visibilityHandler);
+      this._visibilityHandler = null;
     }
   }
 

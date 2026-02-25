@@ -6,6 +6,7 @@ class WeatherService {
     this.subscribers = new Set();
     this.pollInterval = null;
     this.connected = false;
+    this._visibilityHandler = null;
   }
 
   // Connect with legacy single-location config or new multi-location
@@ -307,23 +308,37 @@ class WeatherService {
     ).pop();
   }
 
+  async _pollAll() {
+    for (const location of this.locations) {
+      try {
+        await this.fetchWeatherForLocation(location);
+      } catch (error) {
+        console.warn(`[Weather] Poll failed for ${location.name}:`, error.message);
+      }
+    }
+  }
+
   startPolling(interval = 600000) {
     this.stopPolling();
-    this.pollInterval = setInterval(async () => {
-      for (const location of this.locations) {
-        try {
-          await this.fetchWeatherForLocation(location);
-        } catch (error) {
-          console.warn(`[Weather] Poll failed for ${location.name}:`, error.message);
-        }
+    this.pollInterval = setInterval(() => this._pollAll(), interval);
+
+    this._visibilityHandler = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('[Weather] Tab visible — refreshing data');
+        this._pollAll();
       }
-    }, interval);
+    };
+    document.addEventListener('visibilitychange', this._visibilityHandler);
   }
 
   stopPolling() {
     if (this.pollInterval) {
       clearInterval(this.pollInterval);
       this.pollInterval = null;
+    }
+    if (this._visibilityHandler) {
+      document.removeEventListener('visibilitychange', this._visibilityHandler);
+      this._visibilityHandler = null;
     }
   }
 

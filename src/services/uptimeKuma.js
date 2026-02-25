@@ -9,6 +9,7 @@ class UptimeKumaService {
     this.subscribers = new Set();
     this.pollInterval = null;
     this.connected = false;
+    this._visibilityHandler = null;
   }
 
   // Normalize URL - add http:// if missing
@@ -105,34 +106,47 @@ class UptimeKumaService {
     this.notifySubscribers();
   }
 
+  async _poll() {
+    try {
+      if (this.statusPageSlug) {
+        const [configResponse, heartbeatResponse] = await Promise.all([
+          proxyFetch(`${this.baseUrl}/api/status-page/${this.statusPageSlug}`),
+          proxyFetch(`${this.baseUrl}/api/status-page/heartbeat/${this.statusPageSlug}`)
+        ]);
+
+        if (configResponse.ok && heartbeatResponse.ok) {
+          const configData = await configResponse.json();
+          const heartbeatData = await heartbeatResponse.json();
+          this.processStatusPageData(configData, heartbeatData);
+        }
+      }
+    } catch (error) {
+      console.error('[Uptime Kuma] Poll failed:', error);
+    }
+  }
+
   startPolling(interval = 30000) {
     this.stopPolling();
 
-    this.pollInterval = setInterval(async () => {
-      try {
-        if (this.statusPageSlug) {
-          // Fetch both config and heartbeat
-          const [configResponse, heartbeatResponse] = await Promise.all([
-            proxyFetch(`${this.baseUrl}/api/status-page/${this.statusPageSlug}`),
-            proxyFetch(`${this.baseUrl}/api/status-page/heartbeat/${this.statusPageSlug}`)
-          ]);
+    this.pollInterval = setInterval(() => this._poll(), interval);
 
-          if (configResponse.ok && heartbeatResponse.ok) {
-            const configData = await configResponse.json();
-            const heartbeatData = await heartbeatResponse.json();
-            this.processStatusPageData(configData, heartbeatData);
-          }
-        }
-      } catch (error) {
-        console.error('[Uptime Kuma] Poll failed:', error);
+    this._visibilityHandler = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('[Uptime Kuma] Tab visible — refreshing data');
+        this._poll();
       }
-    }, interval);
+    };
+    document.addEventListener('visibilitychange', this._visibilityHandler);
   }
 
   stopPolling() {
     if (this.pollInterval) {
       clearInterval(this.pollInterval);
       this.pollInterval = null;
+    }
+    if (this._visibilityHandler) {
+      document.removeEventListener('visibilitychange', this._visibilityHandler);
+      this._visibilityHandler = null;
     }
   }
 
