@@ -18,7 +18,9 @@ class ProxmoxService {
     this.stopPolling();
 
     let url = (config.url || '').trim().replace(/\/+$/, '');
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    // Proxmox always uses HTTPS — force it even if user typed http://
+    url = url.replace(/^http:\/\//i, 'https://');
+    if (!url.startsWith('https://')) {
       url = 'https://' + url;
     }
 
