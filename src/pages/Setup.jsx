@@ -5,7 +5,8 @@ import {
   ExternalLink, RotateCcw, Check, X, Loader2, ChevronDown, ChevronUp,
   Eye, EyeOff, Info, Plus, Trash2, Search, Calendar, Camera, StickyNote, Cpu,
   Lightbulb, Bed, ChefHat, Lock, Thermometer, Tv, DoorOpen, Fan, Power, Film, Book, Bell,
-  Download, Upload, Link as LinkIcon, Box, Rss, Image, Star, TrendingUp, Timer, Wifi
+  Download, Upload, Link as LinkIcon, Box, Rss, Image, Star, TrendingUp, Timer, Wifi,
+  Shield, Server
 } from 'lucide-react';
 import { useDashboardStore } from '../store/dashboardStore';
 import { homeAssistant } from '../services';
@@ -167,7 +168,9 @@ const panelIcons = {
   'rss': Rss,
   'poster': Image,
   'markets': TrendingUp,
-  'unifi': Wifi
+  'unifi': Wifi,
+  'pihole': Shield,
+  'proxmox': Server
 };
 
 const availableIcons = [
@@ -1928,8 +1931,8 @@ export default function Setup() {
     _hasHydrated,
     panels, togglePanel, reorderPanels, updatePanelConfig,
     integrations, updateIntegration, connectionStatus,
-    connectHomeAssistant, connectUptimeKuma, connectWeather, connectTautulli, connectUnifi,
-    disconnectHomeAssistant, disconnectUptimeKuma, disconnectWeather, disconnectTautulli, disconnectUnifi,
+    connectHomeAssistant, connectUptimeKuma, connectWeather, connectTautulli, connectUnifi, connectPihole, connectProxmox,
+    disconnectHomeAssistant, disconnectUptimeKuma, disconnectWeather, disconnectTautulli, disconnectUnifi, disconnectPihole, disconnectProxmox,
     testTmdbConnection, testTraktConnection, resetPosterConnection,
     settings, updateSettings, resetToDefaults
   } = useDashboardStore();
@@ -2958,6 +2961,79 @@ export default function Setup() {
                 helpText="UniFi site name — most installations use 'default'" />
 
             </IntegrationCard>
+
+            {/* Pi-hole / AdGuard Home */}
+            <IntegrationCard title="DNS Filter" icon={Shield} enabled={integrations.pihole?.enabled}
+              onToggle={() => updateIntegration('pihole', { ...integrations.pihole, enabled: !integrations.pihole?.enabled })}
+              status={connectionStatus.pihole} onConnect={connectPihole} onDisconnect={disconnectPihole} language={language}>
+
+              <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '12px', marginBottom: '16px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                Monitor DNS queries, blocked requests, and top domains from Pi-hole or AdGuard Home.
+              </div>
+
+              {/* DNS Type */}
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', marginBottom: '6px', color: 'var(--text-secondary)' }}>DNS Filter Type</label>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  {[{ value: 'pihole', label: 'Pi-hole' }, { value: 'adguard', label: 'AdGuard Home' }].map(opt => (
+                    <label key={opt.value} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', color: 'var(--text-primary)' }}>
+                      <input type="radio" name="piholeType" checked={(integrations.pihole?.type || 'pihole') === opt.value}
+                        onChange={() => updateIntegration('pihole', { ...integrations.pihole, type: opt.value })} style={{ accentColor: 'var(--accent-primary)' }} />
+                      {opt.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <FormInput label="URL" value={integrations.pihole?.url || ''}
+                onChange={(url) => updateIntegration('pihole', { ...integrations.pihole, url })}
+                placeholder={(integrations.pihole?.type || 'pihole') === 'adguard' ? 'http://192.168.1.x:3000' : 'http://192.168.1.x'}
+                helpText={(integrations.pihole?.type || 'pihole') === 'adguard'
+                  ? 'AdGuard Home URL (default port 3000)'
+                  : 'Pi-hole web interface URL (e.g. http://pi.hole or IP address)'} />
+
+              {(integrations.pihole?.type || 'pihole') === 'adguard' ? (
+                <>
+                  <FormInput label="Username" value={integrations.pihole?.username || ''}
+                    onChange={(username) => updateIntegration('pihole', { ...integrations.pihole, username })}
+                    placeholder="admin" />
+                  <FormInput label="Password" value={integrations.pihole?.password || ''}
+                    onChange={(password) => updateIntegration('pihole', { ...integrations.pihole, password })}
+                    placeholder="Password" secret />
+                </>
+              ) : (
+                <FormInput label="API Key (optional)" value={integrations.pihole?.apiKey || ''}
+                  onChange={(apiKey) => updateIntegration('pihole', { ...integrations.pihole, apiKey })}
+                  placeholder="Pi-hole API key" secret
+                  helpText="Settings → API → Show API token. Required for top domains data." />
+              )}
+            </IntegrationCard>
+
+            {/* Proxmox */}
+            <IntegrationCard title="Proxmox" icon={Server} enabled={integrations.proxmox?.enabled}
+              onToggle={() => updateIntegration('proxmox', { ...integrations.proxmox, enabled: !integrations.proxmox?.enabled })}
+              status={connectionStatus.proxmox} onConnect={connectProxmox} onDisconnect={disconnectProxmox} language={language}>
+
+              <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '12px', marginBottom: '16px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                Monitor Proxmox VE nodes, virtual machines, and LXC containers with CPU, RAM, and disk usage.
+              </div>
+
+              <FormInput label="Proxmox URL" value={integrations.proxmox?.url || ''}
+                onChange={(url) => updateIntegration('proxmox', { ...integrations.proxmox, url })}
+                placeholder="https://192.168.1.x:8006"
+                helpText="Proxmox web UI URL (port 8006)" />
+
+              <FormInput label="API Token ID" value={integrations.proxmox?.tokenId || ''}
+                onChange={(tokenId) => updateIntegration('proxmox', { ...integrations.proxmox, tokenId })}
+                placeholder="user@pam!dashboard"
+                helpText="Format: user@realm!tokenname — Create at Datacenter → Permissions → API Tokens" />
+
+              <FormInput label="API Token Secret" value={integrations.proxmox?.tokenSecret || ''}
+                onChange={(tokenSecret) => updateIntegration('proxmox', { ...integrations.proxmox, tokenSecret })}
+                placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" secret
+                helpText="Token needs PVEAuditor role (read-only) on '/' path" />
+            </IntegrationCard>
+
           </div>
         )}
 

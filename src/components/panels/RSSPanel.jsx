@@ -29,10 +29,10 @@ const stripHtml = (html) => {
 const FeedItem = ({ item, feedColor }) => {
   return (
     <div
-      onClick={(e) => {
-        e.preventDefault();
-        // Don't navigate in kiosk - just vibrate for feedback
-        if (navigator.vibrate) navigator.vibrate(20);
+      onClick={() => {
+        if (item.link) {
+          window.open(item.link, '_blank', 'noopener,noreferrer');
+        }
       }}
       style={{
         display: 'block',

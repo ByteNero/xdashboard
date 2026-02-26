@@ -2,9 +2,11 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { homeAssistant, uptimeKuma, weather, tautulli } from '../services';
 import { unifi } from '../services/unifi';
+import { pihole } from '../services/pihole';
+import { proxmox } from '../services/proxmox';
 
 // Increment this when making breaking changes to force cache reset
-const STORE_VERSION = 7;
+const STORE_VERSION = 8;
 
 const defaultPanels = [
   {
@@ -159,6 +161,22 @@ const defaultPanels = [
     enabled: false,
     order: 16,
     config: {}
+  },
+  {
+    id: 'pihole',
+    type: 'pihole',
+    title: 'DNS Filter',
+    enabled: false,
+    order: 17,
+    config: {}
+  },
+  {
+    id: 'proxmox',
+    type: 'proxmox',
+    title: 'Proxmox',
+    enabled: false,
+    order: 18,
+    config: {}
   }
 ];
 
@@ -270,6 +288,20 @@ const defaultIntegrations = {
     password: '',
     apiKey: '',
     site: 'default'
+  },
+  pihole: {
+    enabled: false,
+    type: 'pihole', // 'pihole' or 'adguard'
+    url: '',
+    apiKey: '', // Pi-hole web password / API key
+    username: '', // AdGuard username
+    password: '' // AdGuard password
+  },
+  proxmox: {
+    enabled: false,
+    url: '',
+    tokenId: '', // e.g. user@pam!tokenname
+    tokenSecret: ''
   }
 };
 
@@ -304,7 +336,9 @@ export const useDashboardStore = create(
         tautulli: { connected: false, error: null },
         poster: { tmdb: { connected: false, error: null }, trakt: { connected: false, error: null } },
         calendars: { configured: false, connected: false, testedCount: 0, totalCount: 0, totalEvents: 0 },
-        unifi: { connected: false, error: null }
+        unifi: { connected: false, error: null },
+        pihole: { connected: false, error: null },
+        proxmox: { connected: false, error: null }
       },
       
       // Panel management
@@ -614,6 +648,60 @@ export const useDashboardStore = create(
         get().setConnectionStatus('unifi', { connected: false, error: null });
       },
 
+      connectPihole: async () => {
+        const { integrations, setConnectionStatus } = get();
+        const config = integrations.pihole;
+
+        if (!config.url) {
+          setConnectionStatus('pihole', { connected: false, error: 'URL is required' });
+          return false;
+        }
+
+        try {
+          setConnectionStatus('pihole', { connected: false, error: null, connecting: true });
+          await pihole.connect(config);
+          setConnectionStatus('pihole', { connected: true, connecting: false, error: null });
+          return true;
+        } catch (error) {
+          setConnectionStatus('pihole', { connected: false, connecting: false, error: error.message });
+          return false;
+        }
+      },
+
+      disconnectPihole: () => {
+        pihole.disconnect();
+        get().setConnectionStatus('pihole', { connected: false, error: null });
+      },
+
+      connectProxmox: async () => {
+        const { integrations, setConnectionStatus } = get();
+        const config = integrations.proxmox;
+
+        if (!config.url) {
+          setConnectionStatus('proxmox', { connected: false, error: 'URL is required' });
+          return false;
+        }
+        if (!config.tokenId || !config.tokenSecret) {
+          setConnectionStatus('proxmox', { connected: false, error: 'API token ID and secret required' });
+          return false;
+        }
+
+        try {
+          setConnectionStatus('proxmox', { connected: false, error: null, connecting: true });
+          await proxmox.connect(config);
+          setConnectionStatus('proxmox', { connected: true, connecting: false, error: null });
+          return true;
+        } catch (error) {
+          setConnectionStatus('proxmox', { connected: false, connecting: false, error: error.message });
+          return false;
+        }
+      },
+
+      disconnectProxmox: () => {
+        proxmox.disconnect();
+        get().setConnectionStatus('proxmox', { connected: false, error: null });
+      },
+
       // Test TMDB API connection
       testTmdbConnection: async () => {
         const { integrations, setConnectionStatus, connectionStatus } = get();
@@ -716,7 +804,7 @@ export const useDashboardStore = create(
 
       // Connect all enabled integrations
       connectAllEnabled: async () => {
-        const { integrations, connectHomeAssistant, connectUptimeKuma, connectWeather, connectTautulli, connectUnifi } = get();
+        const { integrations, connectHomeAssistant, connectUptimeKuma, connectWeather, connectTautulli, connectUnifi, connectPihole, connectProxmox } = get();
 
         const promises = [];
 
@@ -740,6 +828,14 @@ export const useDashboardStore = create(
 
         if (integrations.unifi?.enabled && integrations.unifi?.url) {
           promises.push(connectUnifi());
+        }
+
+        if (integrations.pihole?.enabled && integrations.pihole?.url) {
+          promises.push(connectPihole());
+        }
+
+        if (integrations.proxmox?.enabled && integrations.proxmox?.url && integrations.proxmox?.tokenId) {
+          promises.push(connectProxmox());
         }
 
         if (promises.length > 0) {

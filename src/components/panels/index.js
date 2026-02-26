@@ -17,3 +17,5 @@ export { default as RSSPanel } from './RSSPanel';
 export { default as PosterPanel } from './PosterPanel';
 export { default as MarketsPanel } from './MarketsPanel';
 export { default as UniFiPanel } from './UniFiPanel';
+export { default as PiholePanel } from './PiholePanel';
+export { default as ProxmoxPanel } from './ProxmoxPanel';

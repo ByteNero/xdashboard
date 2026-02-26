@@ -17,7 +17,9 @@ import {
   RSSPanel,
   PosterPanel,
   MarketsPanel,
-  UniFiPanel
+  UniFiPanel,
+  PiholePanel,
+  ProxmoxPanel
 } from '../components/panels';
 import StandbyOverlay from '../components/StandbyOverlay';
 import { Loader2 } from 'lucide-react';
@@ -39,7 +41,9 @@ const panelComponents = {
   'rss': RSSPanel,
   'poster': PosterPanel,
   'markets': MarketsPanel,
-  'unifi': UniFiPanel
+  'unifi': UniFiPanel,
+  'pihole': PiholePanel,
+  'proxmox': ProxmoxPanel
 };
 
 export default function Display() {
