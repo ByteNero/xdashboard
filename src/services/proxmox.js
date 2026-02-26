@@ -47,20 +47,39 @@ class ProxmoxService {
     const proxyUrl = `/api/proxy?url=${encodeURIComponent(url)}&headers=${encodeURIComponent(headers)}`;
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000);
+    const timeout = setTimeout(() => controller.abort(), 15000);
 
     try {
+      console.log(`[Proxmox] Fetching: ${path}`);
       const response = await fetch(proxyUrl, { signal: controller.signal });
       clearTimeout(timeout);
 
       if (!response.ok) {
         if (response.status === 401 || response.status === 403) {
-          throw new Error('Authentication failed — check API token');
+          throw new Error('Authentication failed — check API token ID and secret');
         }
-        throw new Error(`HTTP ${response.status}`);
+        if (response.status === 595 || response.status === 596) {
+          throw new Error('Could not reach Proxmox — check URL and ensure the host is accessible from the dashboard server');
+        }
+        // Try to read error body
+        const errorText = await response.text().catch(() => '');
+        throw new Error(`HTTP ${response.status}${errorText ? ': ' + errorText.slice(0, 100) : ''}`);
       }
 
-      const json = await response.json();
+      const text = await response.text();
+
+      // Proxmox sometimes returns HTML login page instead of JSON
+      if (text.startsWith('<!') || text.startsWith('<html')) {
+        throw new Error('Received HTML instead of JSON — check URL (should end with port 8006)');
+      }
+
+      let json;
+      try {
+        json = JSON.parse(text);
+      } catch (e) {
+        throw new Error('Invalid JSON response from Proxmox');
+      }
+
       return json.data;
     } catch (error) {
       clearTimeout(timeout);

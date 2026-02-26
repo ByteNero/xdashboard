@@ -3002,10 +3002,10 @@ export default function Setup() {
                     placeholder="Password" secret />
                 </>
               ) : (
-                <FormInput label="API Key (optional)" value={integrations.pihole?.apiKey || ''}
+                <FormInput label="Password / API Key" value={integrations.pihole?.apiKey || ''}
                   onChange={(apiKey) => updateIntegration('pihole', { ...integrations.pihole, apiKey })}
-                  placeholder="Pi-hole API key" secret
-                  helpText="Settings → API → Show API token. Required for top domains data." />
+                  placeholder="Pi-hole web password or API token" secret
+                  helpText="v6: Your Pi-hole web password. v5: Settings → API → Show API token. Auto-detects version." />
               )}
             </IntegrationCard>
 

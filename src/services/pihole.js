@@ -1,12 +1,12 @@
-import { proxyFetch } from './proxy';
-
 class PiholeService {
   constructor() {
     this.baseUrl = null;
     this.apiKey = null;
     this.type = 'pihole'; // 'pihole' or 'adguard'
+    this.piholeVersion = null; // 5 or 6, auto-detected
     this.username = null;
     this.password = null;
+    this.sid = null; // v6 session ID
     this.connected = false;
     this.data = null;
     this.subscribers = new Set();
@@ -28,12 +28,15 @@ class PiholeService {
     this.apiKey = config.apiKey || '';
     this.username = config.username || '';
     this.password = config.password || '';
+    this.sid = null;
+    this.piholeVersion = null;
 
     try {
       if (this.type === 'adguard') {
         await this.fetchAdGuardStats();
       } else {
-        await this.fetchPiholeStats();
+        // Auto-detect v5 vs v6
+        await this._detectAndFetch();
       }
 
       this.connected = true;
@@ -47,28 +50,28 @@ class PiholeService {
     }
   }
 
-  _authHeader() {
-    if (this.type === 'adguard' && this.username && this.password) {
-      return 'Basic ' + btoa(`${this.username}:${this.password}`);
-    }
-    return null;
-  }
-
-  async _fetch(url) {
+  // Proxy helper — builds /api/proxy URL with optional custom headers
+  async _fetch(url, opts = {}) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10000);
 
     try {
-      const auth = this._authHeader();
-
-      // Build proxy URL with custom auth headers if needed
       let proxyUrl = `/api/proxy?url=${encodeURIComponent(url)}`;
-      if (auth) {
-        const headers = JSON.stringify({ Authorization: auth });
-        proxyUrl += `&headers=${encodeURIComponent(headers)}`;
+
+      // Merge custom headers
+      const customHeaders = opts.headers || {};
+      if (Object.keys(customHeaders).length > 0) {
+        proxyUrl += `&headers=${encodeURIComponent(JSON.stringify(customHeaders))}`;
       }
 
-      const response = await fetch(proxyUrl, { signal: controller.signal });
+      const fetchOpts = { signal: controller.signal };
+      if (opts.method) fetchOpts.method = opts.method;
+      if (opts.body) {
+        fetchOpts.body = opts.body;
+        fetchOpts.headers = { 'Content-Type': 'application/json' };
+      }
+
+      const response = await fetch(proxyUrl, fetchOpts);
       clearTimeout(timeout);
 
       if (!response.ok) {
@@ -81,21 +84,130 @@ class PiholeService {
     }
   }
 
-  async fetchPiholeStats() {
-    const params = this.apiKey ? `?auth=${this.apiKey}` : '';
+  // --- Pi-hole version detection ---
+
+  async _detectAndFetch() {
+    // If we already know the version, use it
+    if (this.piholeVersion === 6) {
+      return this._fetchV6Stats();
+    }
+    if (this.piholeVersion === 5) {
+      return this._fetchV5Stats();
+    }
+
+    // Try v6 first (/api/auth endpoint)
+    try {
+      console.log('[DNS] Trying Pi-hole v6 API...');
+      await this._authV6();
+      this.piholeVersion = 6;
+      console.log('[DNS] Detected Pi-hole v6');
+      return this._fetchV6Stats();
+    } catch (e) {
+      console.log('[DNS] v6 auth failed, trying v5...', e.message);
+    }
+
+    // Fall back to v5
+    try {
+      await this._fetchV5Stats();
+      this.piholeVersion = 5;
+      console.log('[DNS] Detected Pi-hole v5');
+    } catch (e) {
+      throw new Error('Could not connect — check URL and API key/password');
+    }
+  }
+
+  // --- Pi-hole v6 ---
+
+  async _authV6() {
+    const password = this.apiKey || this.password || '';
+    const data = await this._fetch(`${this.baseUrl}/api/auth`, {
+      method: 'POST',
+      body: JSON.stringify({ password })
+    });
+
+    if (data?.session?.valid) {
+      this.sid = data.session.sid; // null if no password set
+      console.log('[DNS] v6 authenticated, sid:', this.sid ? 'obtained' : 'not needed');
+      return;
+    }
+
+    throw new Error('Pi-hole v6 authentication failed');
+  }
+
+  _v6Url(path) {
+    let url = `${this.baseUrl}/api${path}`;
+    if (this.sid) {
+      url += (url.includes('?') ? '&' : '?') + `sid=${this.sid}`;
+    }
+    return url;
+  }
+
+  async _fetchV6Stats() {
+    // Try to fetch summary; if 401, re-auth and retry once
+    let summary;
+    try {
+      summary = await this._fetch(this._v6Url('/stats/summary'));
+    } catch (e) {
+      if (e.message.includes('401')) {
+        console.log('[DNS] v6 session expired, re-authenticating...');
+        await this._authV6();
+        summary = await this._fetch(this._v6Url('/stats/summary'));
+      } else {
+        throw e;
+      }
+    }
+
+    if (!summary?.queries) {
+      throw new Error('Invalid Pi-hole v6 response');
+    }
+
+    // Fetch top domains (permitted + blocked) in parallel
+    const [topPermitted, topBlocked] = await Promise.all([
+      this._fetch(this._v6Url('/stats/top_domains?count=5')).catch(() => null),
+      this._fetch(this._v6Url('/stats/top_domains?blocked=true&count=5')).catch(() => null)
+    ]);
+
+    this.data = {
+      type: 'pihole',
+      version: 6,
+      status: summary.queries ? 'enabled' : 'disabled',
+      totalQueries: summary.queries.total || 0,
+      blockedQueries: summary.queries.blocked || 0,
+      percentBlocked: summary.queries.percent_blocked || 0,
+      domainsOnBlocklist: summary.gravity?.domains_being_blocked || 0,
+      uniqueDomains: summary.queries.unique_domains || 0,
+      queriesForwarded: summary.queries.forwarded || 0,
+      queriesCached: summary.queries.cached || 0,
+      clientsEverSeen: summary.clients?.total || 0,
+      uniqueClients: summary.clients?.active || 0,
+      gravityLastUpdated: summary.gravity?.last_update
+        ? new Date(summary.gravity.last_update * 1000).toLocaleDateString()
+        : null,
+      topPermitted: (topPermitted?.domains || []).slice(0, 5).map(d => ({ domain: d.domain, count: d.count })),
+      topBlocked: (topBlocked?.domains || []).slice(0, 5).map(d => ({ domain: d.domain, count: d.count })),
+      queryTypes: summary.queries?.types || null,
+      updatedAt: Date.now()
+    };
+  }
+
+  // --- Pi-hole v5 (legacy) ---
+
+  async _fetchV5Stats() {
+    const authParam = this.apiKey ? `&auth=${this.apiKey}` : '';
 
     const [summary, topItems, queryTypes] = await Promise.all([
-      this._fetch(`${this.baseUrl}/admin/api.php?summaryRaw${params ? '&auth=' + this.apiKey : ''}`),
-      this._fetch(`${this.baseUrl}/admin/api.php?topItems=5${params ? '&auth=' + this.apiKey : ''}`).catch(() => null),
-      this._fetch(`${this.baseUrl}/admin/api.php?getQueryTypes${params ? '&auth=' + this.apiKey : ''}`).catch(() => null)
+      this._fetch(`${this.baseUrl}/admin/api.php?summaryRaw${authParam}`),
+      this._fetch(`${this.baseUrl}/admin/api.php?topItems=5${authParam}`).catch(() => null),
+      this._fetch(`${this.baseUrl}/admin/api.php?getQueryTypes${authParam}`).catch(() => null)
     ]);
 
     if (summary.status === undefined && !summary.domains_being_blocked) {
-      throw new Error('Invalid Pi-hole response — check URL');
+      throw new Error('Invalid Pi-hole v5 response — check URL');
     }
 
     this.data = {
       type: 'pihole',
+      version: 5,
       status: summary.status || 'unknown',
       totalQueries: parseInt(summary.dns_queries_today) || 0,
       blockedQueries: parseInt(summary.ads_blocked_today) || 0,
@@ -117,10 +229,21 @@ class PiholeService {
     };
   }
 
+  // --- AdGuard Home ---
+
+  _adguardAuthHeader() {
+    if (this.username && this.password) {
+      return { Authorization: 'Basic ' + btoa(`${this.username}:${this.password}`) };
+    }
+    return {};
+  }
+
   async fetchAdGuardStats() {
+    const headers = this._adguardAuthHeader();
+
     const [status, stats] = await Promise.all([
-      this._fetch(`${this.baseUrl}/control/status`),
-      this._fetch(`${this.baseUrl}/control/stats`)
+      this._fetch(`${this.baseUrl}/control/status`, { headers }),
+      this._fetch(`${this.baseUrl}/control/stats`, { headers })
     ]);
 
     if (status.dns_addresses === undefined && !status.protection_enabled) {
@@ -157,6 +280,8 @@ class PiholeService {
     };
   }
 
+  // --- Polling / reconnect ---
+
   async attemptReconnect() {
     if (this._reconnecting || !this.baseUrl) return;
     this._reconnecting = true;
@@ -166,7 +291,7 @@ class PiholeService {
       if (this.type === 'adguard') {
         await this.fetchAdGuardStats();
       } else {
-        await this.fetchPiholeStats();
+        await this._detectAndFetch();
       }
       this.connected = true;
       console.log('[DNS] Reconnected successfully');
@@ -186,8 +311,12 @@ class PiholeService {
     try {
       if (this.type === 'adguard') {
         await this.fetchAdGuardStats();
+      } else if (this.piholeVersion === 6) {
+        await this._fetchV6Stats();
+      } else if (this.piholeVersion === 5) {
+        await this._fetchV5Stats();
       } else {
-        await this.fetchPiholeStats();
+        await this._detectAndFetch();
       }
       this.notifySubscribers();
     } catch (error) {
@@ -240,6 +369,8 @@ class PiholeService {
     this.stopPolling();
     this.connected = false;
     this.data = null;
+    this.sid = null;
+    this.piholeVersion = null;
     this.subscribers.clear();
   }
 
