@@ -65,9 +65,10 @@ export default function StandbyOverlay() {
   const [sonarrData, setSonarrData] = useState(null);
   const [quickActionStates, setQuickActionStates] = useState({});
   const [bgLoaded, setBgLoaded] = useState(false);
+  const [viewportHeight, setViewportHeight] = useState(typeof window !== 'undefined' ? window.innerHeight : 720);
   const idleTimerRef = useRef(null);
   const isStandbyRef = useRef(false);
-  const skipWakeRef = useRef(false);
+  const quickActionsRef = useRef(null);
 
   const {
     standbyEnabled = false,
@@ -101,9 +102,9 @@ export default function StandbyOverlay() {
     }, idleMsRef.current);
   }, []);
 
-  const handleInteraction = useCallback(() => {
-    if (skipWakeRef.current) {
-      skipWakeRef.current = false;
+  const handleInteraction = useCallback((event) => {
+    // Don't wake standby if interacting with quick action buttons
+    if (quickActionsRef.current && event?.target && quickActionsRef.current.contains(event.target)) {
       return;
     }
     if (isStandbyRef.current) {
@@ -143,6 +144,13 @@ export default function StandbyOverlay() {
       startIdleTimer();
     }
   }, [standbyIdleMinutes, standbyEnabled, startIdleTimer]);
+
+  // ── Track viewport height for card limits ──
+  useEffect(() => {
+    const onResize = () => setViewportHeight(window.innerHeight);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   // ── Reset overlay data on standby enter (prevents stale data flash) ──
   useEffect(() => {
@@ -279,6 +287,175 @@ export default function StandbyOverlay() {
     .filter(ep => favoriteIds.has(ep.seriesId) && new Date(ep.airDateUtc) >= now)
     .slice(0, 3);
 
+  // ── Card limit based on viewport height ──
+  const maxCards = viewportHeight >= 720 ? 6 : viewportHeight >= 550 ? 4 : 3;
+
+  // ── Build prioritised card list (clock + date are not cards) ──
+  const cards = [];
+
+  if (standbyOverlays.weather && currentWeather) {
+    cards.push(
+      <div key="weather" className="standby-card">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+          <span style={{ flexShrink: 0 }}><WeatherIcon icon={currentWeather.icon} size={42} /></span>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontSize: '22px', fontWeight: '700', color: 'rgba(255,255,255,0.9)' }}>{Math.round(currentWeather.temp)}°</div>
+            <div className="standby-truncate" style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', textTransform: 'capitalize' }}>{currentWeather.description}</div>
+          </div>
+          {(currentWeather.high != null || currentWeather.low != null) && (
+            <div style={{ flexShrink: 0, fontSize: '11px', color: 'rgba(255,255,255,0.4)', fontFamily: 'var(--font-mono, monospace)' }}>
+              {currentWeather.high != null && <span>↑{Math.round(currentWeather.high)}°</span>}{' '}
+              {currentWeather.low != null && <span>↓{Math.round(currentWeather.low)}°</span>}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (standbyOverlays.lights && homeAssistant.isConnected()) {
+    cards.push(
+      <div key="lights" className="standby-card">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Lightbulb size={16} style={{ color: lightsOn > 0 ? '#facc15' : 'rgba(255,255,255,0.3)' }} />
+          <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.7)' }}>
+            {lightsOn > 0 ? <><span style={{ color: '#facc15', fontWeight: '600' }}>{lightsOn}</span> light{lightsOn !== 1 ? 's' : ''} on</> : 'All lights off'}
+          </span>
+          {lightsTotal > 0 && <span style={{ marginLeft: 'auto', fontSize: '11px', color: 'rgba(255,255,255,0.3)', fontFamily: 'var(--font-mono, monospace)' }}>{lightsOn}/{lightsTotal}</span>}
+        </div>
+      </div>
+    );
+  }
+
+  if (standbyOverlays.services && uptimeKuma.isConnected()) {
+    cards.push(
+      <div key="services" className="standby-card">
+        {downServices.length > 0 ? (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+              <AlertTriangle size={14} style={{ color: '#ef4444', flexShrink: 0 }} />
+              <span style={{ fontSize: '11px', color: '#ef4444', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                {downServices.length <= 3 ? `${downServices.length} service${downServices.length !== 1 ? 's' : ''} down` : '3+ services down'}
+              </span>
+            </div>
+            {downServices.slice(0, 3).map((svc, i) => (
+              <div key={i} style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', padding: '2px 0', display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ef4444', flexShrink: 0 }} />
+                <span className="standby-truncate">{svc.name}</span>
+              </div>
+            ))}
+          </>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#22c55e', flexShrink: 0 }} />
+            <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>All {monitors.length} services up</span>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (standbyOverlays.countdowns && countdowns.length > 0) {
+    cards.push(
+      <div key="countdowns" className="standby-card" style={{ padding: '8px 12px' }}>
+        {countdowns.slice(0, 3).map(cd => <CountdownItem key={cd.id} countdown={cd} now={time} />)}
+      </div>
+    );
+  }
+
+  if (standbyOverlays.tautulliActivity) {
+    if (streamCount > 0) {
+      cards.push(
+        <div key="tautulli" className="standby-card">
+          <div className="standby-tautulli-header" style={{ marginBottom: standbyStreamDetails ? '6px' : 0 }}>
+            <Play size={12} style={{ fill: 'var(--accent-primary)', color: 'var(--accent-primary)' }} />
+            <span>{streamCount} streaming</span>
+          </div>
+          {standbyStreamDetails && streams.slice(0, 3).map((s, i) => (
+            <div key={i} className="standby-tautulli-stream">
+              <span className="standby-tautulli-user">{s.user}</span>
+              <span className="standby-tautulli-title">{s.grandparentTitle ? `${s.grandparentTitle} - ${s.title}` : s.title}</span>
+            </div>
+          ))}
+        </div>
+      );
+    } else if (tautulli.isConnected()) {
+      cards.push(
+        <div key="tautulli-idle" className="standby-card">
+          <div className="standby-tautulli-header" style={{ opacity: 0.4, marginBottom: 0 }}>
+            <Users size={12} /><span>Nothing playing</span>
+          </div>
+        </div>
+      );
+    }
+  }
+
+  if (standbyOverlays.extraClocks && extraClocks.length > 0) {
+    const clocks = extraClocks.slice(0, 3);
+    cards.push(
+      <div key="clocks" className="standby-card">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+          <Globe size={12} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
+          <span style={{ fontSize: '11px', color: 'var(--accent-primary)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px' }}>World Clocks</span>
+          {extraClocks.length > 3 && <span style={{ marginLeft: 'auto', fontSize: '10px', color: 'rgba(255,255,255,0.3)' }}>+{extraClocks.length - 3} more</span>}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${clocks.length}, 1fr)`, gap: '8px' }}>
+          {clocks.map(clock => (
+            <div key={clock.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+              <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{clock.name}</span>
+              <span style={{ fontSize: '18px', fontWeight: '600', color: 'rgba(255,255,255,0.85)', fontFamily: 'var(--font-mono, monospace)' }}>
+                {time.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: clock.timezone })}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (standbyOverlays.tvCalendar && sonarr.connected) {
+    if (tvEpisodes.length > 0) {
+      cards.push(
+        <div key="tv" className="standby-card">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+            <Tv size={12} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
+            <span style={{ fontSize: '11px', color: 'var(--accent-primary)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px' }}>Upcoming</span>
+            <span style={{ marginLeft: 'auto', fontSize: '10px', color: 'rgba(255,255,255,0.3)' }}>{tvEpisodes.length} ep{tvEpisodes.length !== 1 ? 's' : ''}</span>
+          </div>
+          {tvEpisodes.map(ep => {
+            const airDate = new Date(ep.airDateUtc);
+            const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const tomorrowStart = new Date(todayStart); tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+            const epDay = new Date(airDate.getFullYear(), airDate.getMonth(), airDate.getDate());
+            let dayLabel;
+            if (epDay.getTime() === todayStart.getTime()) dayLabel = 'Today';
+            else if (epDay.getTime() === tomorrowStart.getTime()) dayLabel = 'Tomorrow';
+            else { const diff = Math.floor((epDay - todayStart) / 86400000); dayLabel = diff <= 7 ? airDate.toLocaleDateString(language, { weekday: 'short' }) : airDate.toLocaleDateString(language, { month: 'short', day: 'numeric' }); }
+            const timeLabel = airDate.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit', hour12: false });
+            return (
+              <div key={ep.id} style={{ padding: '3px 0', display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                <span className="standby-truncate" style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)', flex: 1 }}>{ep.seriesTitle}</span>
+                <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', flexShrink: 0, fontFamily: 'var(--font-mono, monospace)' }}>S{String(ep.seasonNumber).padStart(2, '0')}E{String(ep.episodeNumber).padStart(2, '0')}</span>
+                <span style={{ fontSize: '10px', color: 'var(--accent-primary)', flexShrink: 0, fontWeight: 600 }}>{dayLabel} {timeLabel}</span>
+              </div>
+            );
+          })}
+        </div>
+      );
+    } else if (favoriteIds.size > 0) {
+      cards.push(
+        <div key="tv-idle" className="standby-card">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', opacity: 0.4 }}>
+            <Tv size={12} /><span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>No upcoming episodes</span>
+          </div>
+        </div>
+      );
+    }
+  }
+
+  // ── Slice cards to fit viewport ──
+  const visibleCards = cards.slice(0, maxCards);
+
   // ── Background style ──
   const backgroundStyle = (standbyBackgroundUrl && bgLoaded)
     ? { backgroundImage: `url(${standbyBackgroundUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }
@@ -295,225 +472,22 @@ export default function StandbyOverlay() {
 
       {/* Info overlays */}
       <div className="standby-info" style={{ position: 'absolute', ...posStyle }}>
-
-        {/* ── Clock ── */}
         {standbyOverlays.clock && (
           <div className="standby-clock">
             {time.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit', hour12: false })}
           </div>
         )}
-
-        {/* ── Date ── */}
         {standbyOverlays.date && (
           <div className="standby-date">
             {time.toLocaleDateString(language, { weekday: 'long', day: 'numeric', month: 'long' })}
           </div>
         )}
-
-        {/* ── Weather ── */}
-        {standbyOverlays.weather && currentWeather && (
-          <div className="standby-card">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-              <span style={{ flexShrink: 0 }}>
-                <WeatherIcon icon={currentWeather.icon} size={42} />
-              </span>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ fontSize: '22px', fontWeight: '700', color: 'rgba(255,255,255,0.9)' }}>
-                  {Math.round(currentWeather.temp)}°
-                </div>
-                <div className="standby-truncate" style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', textTransform: 'capitalize' }}>
-                  {currentWeather.description}
-                </div>
-              </div>
-              {(currentWeather.high != null || currentWeather.low != null) && (
-                <div style={{ flexShrink: 0, fontSize: '11px', color: 'rgba(255,255,255,0.4)', fontFamily: 'var(--font-mono, monospace)' }}>
-                  {currentWeather.high != null && <span>↑{Math.round(currentWeather.high)}°</span>}
-                  {' '}
-                  {currentWeather.low != null && <span>↓{Math.round(currentWeather.low)}°</span>}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ── Lights On ── */}
-        {standbyOverlays.lights && homeAssistant.isConnected() && (
-          <div className="standby-card">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Lightbulb size={16} style={{ color: lightsOn > 0 ? '#facc15' : 'rgba(255,255,255,0.3)' }} />
-              <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.7)' }}>
-                {lightsOn > 0 ? (
-                  <><span style={{ color: '#facc15', fontWeight: '600' }}>{lightsOn}</span> light{lightsOn !== 1 ? 's' : ''} on</>
-                ) : (
-                  'All lights off'
-                )}
-              </span>
-              {lightsTotal > 0 && (
-                <span style={{ marginLeft: 'auto', fontSize: '11px', color: 'rgba(255,255,255,0.3)', fontFamily: 'var(--font-mono, monospace)' }}>
-                  {lightsOn}/{lightsTotal}
-                </span>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ── Services Down ── */}
-        {standbyOverlays.services && uptimeKuma.isConnected() && (
-          <div className="standby-card">
-            {downServices.length > 0 ? (
-              <>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-                  <AlertTriangle size={14} style={{ color: '#ef4444', flexShrink: 0 }} />
-                  <span style={{ fontSize: '11px', color: '#ef4444', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                    {downServices.length <= 3
-                      ? `${downServices.length} service${downServices.length !== 1 ? 's' : ''} down`
-                      : `${3}+ services down`
-                    }
-                  </span>
-                </div>
-                {downServices.slice(0, 3).map((svc, i) => (
-                  <div key={i} style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', padding: '2px 0', display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
-                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ef4444', flexShrink: 0 }} />
-                    <span className="standby-truncate">{svc.name}</span>
-                  </div>
-                ))}
-              </>
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#22c55e', flexShrink: 0 }} />
-                <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>
-                  All {monitors.length} services up
-                </span>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── Countdowns ── */}
-        {standbyOverlays.countdowns && countdowns.length > 0 && (
-          <div className="standby-card" style={{ padding: '8px 12px' }}>
-            {countdowns.slice(0, 3).map(cd => (
-              <CountdownItem key={cd.id} countdown={cd} now={time} />
-            ))}
-          </div>
-        )}
-
-        {/* ── Tautulli Activity ── */}
-        {standbyOverlays.tautulliActivity && streamCount > 0 && (
-          <div className="standby-card">
-            <div className="standby-tautulli-header" style={{ marginBottom: standbyStreamDetails ? '6px' : 0 }}>
-              <Play size={12} style={{ fill: 'var(--accent-primary)', color: 'var(--accent-primary)' }} />
-              <span>{streamCount} streaming</span>
-            </div>
-            {standbyStreamDetails && streams.slice(0, 3).map((s, i) => (
-              <div key={i} className="standby-tautulli-stream">
-                <span className="standby-tautulli-user">{s.user}</span>
-                <span className="standby-tautulli-title">{s.grandparentTitle ? `${s.grandparentTitle} - ${s.title}` : s.title}</span>
-              </div>
-            ))}
-          </div>
-        )}
-        {standbyOverlays.tautulliActivity && streamCount === 0 && tautulli.isConnected() && (
-          <div className="standby-card">
-            <div className="standby-tautulli-header" style={{ opacity: 0.4, marginBottom: 0 }}>
-              <Users size={12} />
-              <span>Nothing playing</span>
-            </div>
-          </div>
-        )}
-
-        {/* ── Extra / World Clocks ── */}
-        {standbyOverlays.extraClocks && extraClocks.length > 0 && (() => {
-          const clocks = extraClocks.slice(0, 3);
-          return (
-            <div className="standby-card">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-                <Globe size={12} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
-                <span style={{ fontSize: '11px', color: 'var(--accent-primary)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                  World Clocks
-                </span>
-                {extraClocks.length > 3 && (
-                  <span style={{ marginLeft: 'auto', fontSize: '10px', color: 'rgba(255,255,255,0.3)' }}>
-                    +{extraClocks.length - 3} more
-                  </span>
-                )}
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: `repeat(${clocks.length}, 1fr)`, gap: '8px' }}>
-                {clocks.map(clock => (
-                  <div key={clock.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
-                    <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{clock.name}</span>
-                    <span style={{ fontSize: '18px', fontWeight: '600', color: 'rgba(255,255,255,0.85)', fontFamily: 'var(--font-mono, monospace)' }}>
-                      {time.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: clock.timezone })}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* ── TV Calendar (favorites only) ── */}
-        {standbyOverlays.tvCalendar && sonarr.connected && tvEpisodes.length > 0 && (
-          <div className="standby-card">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-              <Tv size={12} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
-              <span style={{ fontSize: '11px', color: 'var(--accent-primary)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                Upcoming
-              </span>
-              {tvEpisodes.length > 0 && (
-                <span style={{ marginLeft: 'auto', fontSize: '10px', color: 'rgba(255,255,255,0.3)' }}>
-                  {tvEpisodes.length} ep{tvEpisodes.length !== 1 ? 's' : ''}
-                </span>
-              )}
-            </div>
-            {tvEpisodes.map(ep => {
-              const airDate = new Date(ep.airDateUtc);
-              const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-              const tomorrowStart = new Date(todayStart);
-              tomorrowStart.setDate(tomorrowStart.getDate() + 1);
-              const epDay = new Date(airDate.getFullYear(), airDate.getMonth(), airDate.getDate());
-
-              let dayLabel;
-              if (epDay.getTime() === todayStart.getTime()) dayLabel = 'Today';
-              else if (epDay.getTime() === tomorrowStart.getTime()) dayLabel = 'Tomorrow';
-              else {
-                const diff = Math.floor((epDay - todayStart) / 86400000);
-                dayLabel = diff <= 7
-                  ? airDate.toLocaleDateString(language, { weekday: 'short' })
-                  : airDate.toLocaleDateString(language, { month: 'short', day: 'numeric' });
-              }
-
-              const timeLabel = airDate.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit', hour12: false });
-
-              return (
-                <div key={ep.id} style={{ padding: '3px 0', display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-                  <span className="standby-truncate" style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)', flex: 1 }}>
-                    {ep.seriesTitle}
-                  </span>
-                  <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', flexShrink: 0, fontFamily: 'var(--font-mono, monospace)' }}>
-                    S{String(ep.seasonNumber).padStart(2, '0')}E{String(ep.episodeNumber).padStart(2, '0')}
-                  </span>
-                  <span style={{ fontSize: '10px', color: 'var(--accent-primary)', flexShrink: 0, fontWeight: 600 }}>
-                    {dayLabel} {timeLabel}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        )}
-        {standbyOverlays.tvCalendar && sonarr.connected && tvEpisodes.length === 0 && favoriteIds.size > 0 && (
-          <div className="standby-card">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', opacity: 0.4 }}>
-              <Tv size={12} />
-              <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>No upcoming episodes</span>
-            </div>
-          </div>
-        )}
+        {visibleCards}
       </div>
 
       {/* ── Quick Action Buttons — always bottom-right ── */}
       {standbyOverlays.quickActions && Object.keys(quickActionStates).length > 0 && (
-        <div style={{
+        <div ref={quickActionsRef} style={{
           position: 'absolute', bottom: '32px', right: '32px', zIndex: 2,
           display: 'flex', gap: '12px'
         }}>
@@ -522,14 +496,11 @@ export default function StandbyOverlay() {
             if (!entity) return null;
             const isOn = entity.state === 'on';
             const isLight = entity.domain === 'light';
-            const isSwitch = entity.domain === 'switch';
             const activeColor = isLight ? '#facc15' : 'var(--accent-primary)';
 
             return (
               <button
                 key={entityId}
-                onMouseDown={(e) => { e.stopPropagation(); skipWakeRef.current = true; }}
-                onTouchStart={(e) => { e.stopPropagation(); skipWakeRef.current = true; }}
                 onClick={(e) => {
                   e.stopPropagation();
                   homeAssistant.toggle(entityId);
