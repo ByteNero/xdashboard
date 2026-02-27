@@ -1976,6 +1976,13 @@ export default function Setup() {
       if (integrations.proxmox?.enabled && integrations.proxmox?.url && integrations.proxmox?.tokenId) {
         connectProxmox();
       }
+      // Auto-test Poster Discovery APIs
+      if (integrations.poster?.tmdbApiKey) {
+        testTmdbConnection();
+        if (integrations.poster?.traktClientId) {
+          testTraktConnection();
+        }
+      }
     };
     autoConnect();
   }, []); // Only run once on mount
@@ -2158,7 +2165,7 @@ export default function Setup() {
             </IntegrationCard>
 
             <IntegrationCard title={t('calendars', language)} icon={Calendar} enabled={(integrations.calendars || []).some(c => c.enabled)}
-              onToggle={() => {}} status={calendarStatus.connected ? { connected: true, location: `${calendarStatus.totalEvents} ${t('events', language)}` } : { configured: calendarStatus.configured }} language={language}>
+              onToggle={() => {}} status={calendarStatus.connected ? { connected: true, location: `${calendarStatus.totalEvents} ${t('events', language)}` } : (integrations.calendars || []).some(c => c.enabled && c.url) ? { connected: true, location: `${(integrations.calendars || []).filter(c => c.enabled).length} calendars` } : null} language={language}>
               <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '12px', marginBottom: '16px', fontSize: '13px', color: 'var(--text-secondary)' }}>
                 {t('calendarHelp', language)}
               </div>
@@ -2170,7 +2177,7 @@ export default function Setup() {
             </IntegrationCard>
 
             <IntegrationCard title={t('cameras', language)} icon={Camera} enabled={(integrations.cameras || []).some(c => c.enabled) || integrations.scrypted?.enabled}
-              onToggle={() => {}} status={{ configured: (integrations.cameras || []).some(c => c.url || c.entityId || c.scryptedId) || (integrations.scrypted?.enabled && integrations.scrypted?.url && integrations.scrypted?.username) }} language={language}>
+              onToggle={() => {}} status={(() => { const camCount = (integrations.cameras || []).filter(c => c.url || c.entityId || c.scryptedId).length; const hasCams = camCount > 0 || (integrations.scrypted?.enabled && integrations.scrypted?.url); return hasCams ? { connected: true, location: `${camCount || 'Scrypted'} camera${camCount !== 1 ? 's' : ''}` } : null; })()} language={language}>
               <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '12px', marginBottom: '16px', fontSize: '13px', color: 'var(--text-secondary)' }}>
                 {t('camerasHelp', language)}
               </div>
@@ -2202,7 +2209,7 @@ export default function Setup() {
             </IntegrationCard>
 
             <IntegrationCard title={t('clocks', language)} icon={Clock} enabled={(integrations.clocks || []).length > 0}
-              onToggle={() => {}} status={{ configured: (integrations.clocks || []).length > 0 }} language={language}>
+              onToggle={() => {}} status={(() => { const count = (integrations.clocks || []).length; return count > 0 ? { connected: true, location: `${count} clock${count !== 1 ? 's' : ''}` } : null; })()} language={language}>
               <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '12px', marginBottom: '16px', fontSize: '13px', color: 'var(--text-secondary)' }}>
                 {t('clocksHelp', language)}
                 {integrations.weather.apiKey
@@ -2218,7 +2225,7 @@ export default function Setup() {
             </IntegrationCard>
 
             <IntegrationCard title={t('countdowns', language)} icon={Timer} enabled={(integrations.countdowns || []).length > 0}
-              onToggle={() => {}} status={{ configured: (integrations.countdowns || []).some(c => c.name?.trim() && c.targetDate) }} language={language}>
+              onToggle={() => {}} status={(() => { const count = (integrations.countdowns || []).filter(c => c.name?.trim() && c.targetDate).length; return count > 0 ? { connected: true, location: `${count} countdown${count !== 1 ? 's' : ''}` } : null; })()} language={language}>
               <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '12px', marginBottom: '16px', fontSize: '13px', color: 'var(--text-secondary)' }}>
                 {t('countdownsHelp', language)}
               </div>
@@ -2230,7 +2237,7 @@ export default function Setup() {
             </IntegrationCard>
 
             <IntegrationCard title={t('notes', language)} icon={StickyNote} enabled={(integrations.notes || []).length > 0}
-              onToggle={() => {}} status={{ configured: (integrations.notes || []).some(n => n.text?.trim()) }} language={language}>
+              onToggle={() => {}} status={(() => { const count = (integrations.notes || []).filter(n => n.text?.trim()).length; return count > 0 ? { connected: true, location: `${count} note${count !== 1 ? 's' : ''}` } : null; })()} language={language}>
               <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '12px', marginBottom: '16px', fontSize: '13px', color: 'var(--text-secondary)' }}>
                 {t('notesHelp', language)}
               </div>
@@ -2242,7 +2249,7 @@ export default function Setup() {
             </IntegrationCard>
 
             <IntegrationCard title={t('quickLinks', language)} icon={LinkIcon} enabled={(integrations.quickLinks || []).length > 0}
-              onToggle={() => {}} status={{ configured: (integrations.quickLinks || []).some(l => l.url?.trim()) }} language={language}>
+              onToggle={() => {}} status={(() => { const count = (integrations.quickLinks || []).filter(l => l.url?.trim()).length; return count > 0 ? { connected: true, location: `${count} link${count !== 1 ? 's' : ''}` } : null; })()} language={language}>
               <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '12px', marginBottom: '16px', fontSize: '13px', color: 'var(--text-secondary)' }}>
                 Add bookmarks and shortcuts.
               </div>
@@ -2254,7 +2261,7 @@ export default function Setup() {
             </IntegrationCard>
 
             <IntegrationCard title={t('systemMonitors', language)} icon={Cpu} enabled={(integrations.systems || []).some(s => s.apiUrl) || !!integrations.system?.apiUrl}
-              onToggle={() => {}} status={{ configured: (integrations.systems || []).some(s => s.apiUrl) || !!integrations.system?.apiUrl }} language={language}>
+              onToggle={() => {}} status={(() => { const count = (integrations.systems || []).filter(s => s.apiUrl).length + (integrations.system?.apiUrl ? 1 : 0); return count > 0 ? { connected: true, location: `${count} system${count !== 1 ? 's' : ''}` } : null; })()} language={language}>
               <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '12px', marginBottom: '16px', fontSize: '13px', color: 'var(--text-secondary)' }}>
                 <strong>Glances:</strong> http://ip:61208/api/4/quicklook
               </div>
@@ -2266,7 +2273,7 @@ export default function Setup() {
             </IntegrationCard>
 
             <IntegrationCard title={t('mediaArrStack', language)} icon={Film} enabled={Object.values(integrations.arr || {}).some(a => a?.enabled)}
-              onToggle={() => {}} status={{ configured: Object.values(integrations.arr || {}).some(a => a?.enabled && a?.url) }} language={language}>
+              onToggle={() => {}} status={(() => { const services = Object.entries(integrations.arr || {}).filter(([, a]) => a?.enabled && a?.url); return services.length > 0 ? { connected: true, location: services.map(([k]) => k.charAt(0).toUpperCase() + k.slice(1)).join(', ') } : null; })()} language={language}>
               <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '12px', marginBottom: '16px', fontSize: '13px', color: 'var(--text-secondary)' }}>
                 Configure your *arr stack to view requests, upcoming releases, and recently added media.
                 <br /><strong>Tip:</strong> Enable CORS on each service or use a reverse proxy.
@@ -2363,7 +2370,7 @@ export default function Setup() {
             </IntegrationCard>
 
             <IntegrationCard title={t('downloadClients', language)} icon={Download} enabled={Object.values(integrations.downloadClients || {}).some(c => c?.enabled)}
-              onToggle={() => {}} status={{ configured: Object.values(integrations.downloadClients || {}).some(c => c?.enabled && c?.url) }} language={language}>
+              onToggle={() => {}} status={(() => { const clients = Object.entries(integrations.downloadClients || {}).filter(([, c]) => c?.enabled && c?.url); return clients.length > 0 ? { connected: true, location: clients.map(([k]) => k.charAt(0).toUpperCase() + k.slice(1)).join(', ') } : null; })()} language={language}>
               <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '12px', marginBottom: '16px', fontSize: '13px', color: 'var(--text-secondary)' }}>
                 Monitor your download clients to see active downloads, speeds, and queue status.
               </div>
@@ -2459,7 +2466,7 @@ export default function Setup() {
 
             <IntegrationCard title={t('dockerPortainer', language)} icon={Box} enabled={integrations.docker?.enabled}
               onToggle={() => updateIntegration('docker', { ...integrations.docker, enabled: !integrations.docker?.enabled })}
-              status={{ configured: integrations.docker?.enabled && integrations.docker?.url }} language={language}>
+              status={integrations.docker?.enabled && integrations.docker?.url ? { connected: true, location: integrations.docker?.type === 'portainer' ? 'Portainer' : 'Docker API' } : null} language={language}>
               <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '12px', marginBottom: '16px', fontSize: '13px', color: 'var(--text-secondary)' }}>
                 Monitor Docker containers via Portainer API or direct Docker API.
               </div>
@@ -2493,7 +2500,7 @@ export default function Setup() {
             </IntegrationCard>
 
             <IntegrationCard title={t('rssFeeds', language)} icon={Rss} enabled={(integrations.rssFeeds || []).some(f => f.enabled)}
-              onToggle={() => {}} status={{ configured: (integrations.rssFeeds || []).some(f => f.url) }} language={language}>
+              onToggle={() => {}} status={(() => { const count = (integrations.rssFeeds || []).filter(f => f.url).length; return count > 0 ? { connected: true, location: `${count} feed${count !== 1 ? 's' : ''}` } : null; })()} language={language}>
               <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '12px', marginBottom: '16px', fontSize: '13px', color: 'var(--text-secondary)' }}>
                 <strong>Examples:</strong> https://news.ycombinator.com/rss
               </div>
@@ -2505,7 +2512,7 @@ export default function Setup() {
             </IntegrationCard>
 
             <IntegrationCard title={t('posterDiscovery', language)} icon={Image} enabled={!!integrations.poster?.tmdbApiKey}
-              onToggle={() => {}} status={{ connected: connectionStatus.poster?.tmdb?.connected }} language={language}>
+              onToggle={() => {}} status={connectionStatus.poster?.tmdb?.connected ? { connected: true, location: 'TMDB' + (connectionStatus.poster?.trakt?.connected ? ' + Trakt' : '') } : connectionStatus.poster?.tmdb?.error ? { error: connectionStatus.poster.tmdb.error } : integrations.poster?.tmdbApiKey ? { configured: true } : null} language={language}>
               <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '12px', marginBottom: '16px', fontSize: '13px', color: 'var(--text-secondary)' }}>
                 Display upcoming movies and TV shows with full-panel poster art. Integrates with your Radarr/Sonarr to show what's already in your library.
                 <br /><br />
@@ -2779,7 +2786,7 @@ export default function Setup() {
 
             {/* Markets */}
             <IntegrationCard title={t('markets', language)} icon={TrendingUp} enabled={integrations.markets?.watchlist?.length > 0}
-              onToggle={() => {}} status={{ connected: integrations.markets?.watchlist?.length > 0 }} language={language}>
+              onToggle={() => {}} status={(() => { const count = (integrations.markets?.watchlist || []).length; return count > 0 ? { connected: true, location: `${count} asset${count !== 1 ? 's' : ''}` } : null; })()} language={language}>
 
               <div style={{ marginBottom: '16px' }}>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', marginBottom: '8px', color: 'var(--text-secondary)' }}>
