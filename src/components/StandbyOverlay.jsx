@@ -391,7 +391,6 @@ export default function StandbyOverlay() {
         {/* ── Extra / World Clocks ── */}
         {standbyOverlays.extraClocks && extraClocks.length > 0 && (() => {
           const clocks = extraClocks.slice(0, 3);
-          const useGrid = clocks.length > 2;
           return (
             <div className="standby-card">
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
@@ -405,27 +404,16 @@ export default function StandbyOverlay() {
                   </span>
                 )}
               </div>
-              {useGrid ? (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 20px' }}>
-                  {clocks.map(clock => (
-                    <div key={clock.id} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                      <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{clock.name}</span>
-                      <span style={{ fontSize: '18px', fontWeight: '600', color: 'rgba(255,255,255,0.85)', fontFamily: 'var(--font-mono, monospace)' }}>
-                        {time.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: clock.timezone })}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                clocks.map(clock => (
-                  <div key={clock.id} className="standby-card-row">
-                    <span className="standby-card-label">{clock.name}</span>
-                    <span className="standby-card-value" style={{ color: 'rgba(255,255,255,0.8)', flexShrink: 0 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: `repeat(${clocks.length}, 1fr)`, gap: '8px' }}>
+                {clocks.map(clock => (
+                  <div key={clock.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                    <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{clock.name}</span>
+                    <span style={{ fontSize: '18px', fontWeight: '600', color: 'rgba(255,255,255,0.85)', fontFamily: 'var(--font-mono, monospace)' }}>
                       {time.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: clock.timezone })}
                     </span>
                   </div>
-                ))
-              )}
+                ))}
+              </div>
             </div>
           );
         })()}
