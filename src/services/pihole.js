@@ -45,7 +45,6 @@ class PiholeService {
       return { success: true };
     } catch (error) {
       this.connected = false;
-      console.error(`[DNS] Connection failed:`, error.message);
       throw error;
     }
   }
@@ -97,20 +96,16 @@ class PiholeService {
 
     // Try v6 first (/api/auth endpoint)
     try {
-      console.log('[DNS] Trying Pi-hole v6 API...');
       await this._authV6();
       this.piholeVersion = 6;
-      console.log('[DNS] Detected Pi-hole v6');
       return this._fetchV6Stats();
     } catch (e) {
-      console.log('[DNS] v6 auth failed, trying v5...', e.message);
     }
 
     // Fall back to v5
     try {
       await this._fetchV5Stats();
       this.piholeVersion = 5;
-      console.log('[DNS] Detected Pi-hole v5');
     } catch (e) {
       throw new Error('Could not connect — check URL and API key/password');
     }
@@ -127,7 +122,6 @@ class PiholeService {
 
     if (data?.session?.valid) {
       this.sid = data.session.sid; // null if no password set
-      console.log('[DNS] v6 authenticated, sid:', this.sid ? 'obtained' : 'not needed');
       return;
     }
 
@@ -149,7 +143,6 @@ class PiholeService {
       summary = await this._fetch(this._v6Url('/stats/summary'));
     } catch (e) {
       if (e.message.includes('401')) {
-        console.log('[DNS] v6 session expired, re-authenticating...');
         await this._authV6();
         summary = await this._fetch(this._v6Url('/stats/summary'));
       } else {
@@ -287,16 +280,13 @@ class PiholeService {
     this._reconnecting = true;
 
     try {
-      console.log('[DNS] Attempting reconnect...');
       if (this.type === 'adguard') {
         await this.fetchAdGuardStats();
       } else {
         await this._detectAndFetch();
       }
       this.connected = true;
-      console.log('[DNS] Reconnected successfully');
     } catch (error) {
-      console.log('[DNS] Reconnect failed:', error.message);
     } finally {
       this._reconnecting = false;
     }
@@ -320,7 +310,6 @@ class PiholeService {
       }
       this.notifySubscribers();
     } catch (error) {
-      console.error('[DNS] Poll failed:', error.message);
       this.connected = false;
     }
   }
@@ -331,7 +320,6 @@ class PiholeService {
 
     this._visibilityHandler = () => {
       if (document.visibilityState === 'visible') {
-        console.log('[DNS] Tab visible — refreshing data');
         this.fetchAll();
       }
     };

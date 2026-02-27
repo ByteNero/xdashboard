@@ -34,8 +34,6 @@ class TautulliService {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 8000);
 
-      console.log('[Tautulli] Connecting to:', this.baseUrl);
-
       const testUrl = `${this.baseUrl}/api/v2?apikey=${this.apiKey}&cmd=arnold`;
       const response = await proxyFetch(testUrl, { signal: controller.signal });
       clearTimeout(timeout);
@@ -48,7 +46,6 @@ class TautulliService {
       // Arnold command returns result: 'success' with message: null
       if (data?.response?.result === 'success') {
         this.connected = true;
-        console.log('[Tautulli] Connected successfully:', data.response.data);
         await this.fetchAll();
         this.startPolling();
         return { success: true };
@@ -56,7 +53,6 @@ class TautulliService {
       throw new Error('Invalid response from Tautulli');
     } catch (error) {
       this.connected = false;
-      console.error('[Tautulli] Connection failed:', error.message);
 
       if (error.name === 'AbortError') {
         throw new Error('Connection timeout - check URL and network');
@@ -90,9 +86,7 @@ class TautulliService {
       }
       return response.json();
     } catch (error) {
-      console.error(`[Tautulli] API call ${cmd} failed:`, error.message);
       if (error.name === 'AbortError' || error.message.includes('Failed to fetch')) {
-        console.log('[Tautulli] Connection appears lost');
         this.connected = false;
       }
       return null;
@@ -133,7 +127,6 @@ class TautulliService {
     this._reconnecting = true;
 
     try {
-      console.log('[Tautulli] Attempting reconnect...');
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 8000);
 
@@ -144,12 +137,10 @@ class TautulliService {
       if (response.ok) {
         const data = await response.json();
         if (data?.response?.result === 'success') {
-          console.log('[Tautulli] Reconnected successfully');
           this.connected = true;
         }
       }
     } catch (error) {
-      console.log('[Tautulli] Reconnect failed:', error.message);
     } finally {
       this._reconnecting = false;
     }
@@ -191,7 +182,6 @@ class TautulliService {
         this.activity = { streamCount: 0, streams: [] };
       }
     } catch (error) {
-      console.error('[Tautulli] Failed to fetch activity:', error);
       this.activity = { streamCount: 0, streams: [] };
     }
   }
@@ -220,7 +210,6 @@ class TautulliService {
         this.recentlyAdded = [];
       }
     } catch (error) {
-      console.error('[Tautulli] Failed to fetch recently added:', error);
       this.recentlyAdded = [];
     }
   }
@@ -241,7 +230,6 @@ class TautulliService {
         this.history = [];
       }
     } catch (error) {
-      console.error('[Tautulli] Failed to fetch history:', error);
       this.history = [];
     }
   }
@@ -309,7 +297,6 @@ class TautulliService {
         }
       };
     } catch (error) {
-      console.error('[Tautulli] Failed to fetch stats:', error);
       this.stats = null;
     }
   }
@@ -324,7 +311,6 @@ class TautulliService {
     // When the tab becomes visible again, immediately fetch fresh data.
     this._visibilityHandler = () => {
       if (document.visibilityState === 'visible') {
-        console.log('[Tautulli] Tab visible — refreshing data');
         this.fetchAll();
       }
     };

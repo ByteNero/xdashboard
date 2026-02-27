@@ -12,10 +12,7 @@ createRoot(document.getElementById('root')).render(
 // Register PWA service worker
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').then(
-      (reg) => console.log('[PWA] Service worker registered:', reg.scope),
-      (err) => console.error('[PWA] Service worker registration failed:', err)
-    );
+    navigator.serviceWorker.register('/sw.js').then(() => {}, () => {});
   });
 }
 
@@ -26,12 +23,9 @@ const requestWakeLock = async () => {
   if ('wakeLock' in navigator) {
     try {
       wakeLock = await navigator.wakeLock.request('screen');
-      console.log('[WakeLock] Screen wake lock acquired');
       wakeLock.addEventListener('release', () => {
-        console.log('[WakeLock] Screen wake lock released');
       });
     } catch (err) {
-      console.warn('[WakeLock] Failed to acquire:', err.message);
     }
   }
 };

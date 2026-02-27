@@ -31,13 +31,11 @@ class SonarrService {
       clearTimeout(timeout);
 
       this.connected = true;
-      console.log('[Sonarr] Connected:', res.version);
       await this.fetchCalendar();
       this.startPolling();
       return { success: true, version: res.version };
     } catch (error) {
       this.connected = false;
-      console.error('[Sonarr] Connection failed:', error.message);
       throw new Error(`Sonarr connection failed: ${error.message}`);
     }
   }
@@ -101,7 +99,6 @@ class SonarrService {
 
       this._notify();
     } catch (error) {
-      console.error('[Sonarr] Calendar fetch failed:', error.message);
       if (error.message.includes('401')) {
         this.connected = false;
       }
@@ -115,7 +112,6 @@ class SonarrService {
       const res = await this._fetch('/api/v3/system/status');
       if (res?.version) {
         this.connected = true;
-        console.log('[Sonarr] Reconnected');
         await this.fetchCalendar();
       }
     } catch {

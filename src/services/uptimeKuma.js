@@ -27,7 +27,6 @@ class UptimeKumaService {
     this.statusPageSlug = slug;
 
     try {
-      console.log('[Uptime Kuma] Connecting to status page:', this.baseUrl, '/ slug:', slug);
 
       // Fetch status page config first
       const configResponse = await proxyFetch(`${this.baseUrl}/api/status-page/${slug}`);
@@ -40,7 +39,6 @@ class UptimeKumaService {
       }
 
       const configData = await configResponse.json();
-      console.log('[Uptime Kuma] Status page config:', configData);
 
       // Now fetch the heartbeat data which has current status
       const heartbeatResponse = await proxyFetch(`${this.baseUrl}/api/status-page/heartbeat/${slug}`);
@@ -49,7 +47,6 @@ class UptimeKumaService {
       }
 
       const heartbeatData = await heartbeatResponse.json();
-      console.log('[Uptime Kuma] Heartbeat data:', heartbeatData);
 
       // Process the data
       this.processStatusPageData(configData, heartbeatData);
@@ -59,14 +56,13 @@ class UptimeKumaService {
       }
 
       this.connected = true;
-      console.log('[Uptime Kuma] Connected successfully with', Object.keys(this.monitors).length, 'monitors');
+
 
       // Start polling for updates
       this.startPolling();
 
       return { success: true, monitors: Object.keys(this.monitors).length };
     } catch (error) {
-      console.error('[Uptime Kuma] Connection failed:', error);
       this.connected = false;
       if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
         throw new Error('Connection failed - check URL and ensure Uptime Kuma is running');
@@ -121,7 +117,6 @@ class UptimeKumaService {
         }
       }
     } catch (error) {
-      console.error('[Uptime Kuma] Poll failed:', error);
     }
   }
 
@@ -132,7 +127,6 @@ class UptimeKumaService {
 
     this._visibilityHandler = () => {
       if (document.visibilityState === 'visible') {
-        console.log('[Uptime Kuma] Tab visible — refreshing data');
         this._poll();
       }
     };

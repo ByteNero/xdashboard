@@ -23,7 +23,6 @@ export default function WeatherPanel({ config }) {
 
     // Load initial data
     const initial = weatherService.getWeather();
-    console.log('[WeatherPanel] Initial data:', initial);
     if (initial.current) {
       setWeatherData(initial.current);
     }
@@ -32,7 +31,6 @@ export default function WeatherPanel({ config }) {
     }
 
     const unsubscribe = weatherService.subscribe((data) => {
-      console.log('[WeatherPanel] Received update:', data);
       setWeatherData(data.current);
       if (data.locations && data.locations.length > 0) {
         setLocations(data.locations);

@@ -309,12 +309,10 @@ export default function ArrPanel({ config }) {
                   posterPath = posterPath || mediaData.posterPath;
                 }
               } catch (e) {
-                console.warn('Failed to fetch media details:', e);
               }
             }
 
             // Debug log
-            console.log(`[Overseerr] ${title}: request.status=${r.status}, media.status=${mediaInfo.status}`);
 
             let status = 'Pending';
             let bucket = 'requests';
@@ -355,8 +353,6 @@ export default function ArrPanel({ config }) {
             else if (bucket === 'requested') requested.push(item);
             else available.push(item);
           }
-
-          console.log(`[Overseerr] Sorted: ${requests.length} requests, ${requested.length} requested, ${available.length} available`);
 
           setData(prev => ({
             ...prev,
@@ -507,7 +503,6 @@ export default function ArrPanel({ config }) {
         setData(prev => ({ ...prev, [service]: items }));
       }
     } catch (err) {
-      console.error(`[Arr] Error fetching ${service}:`, err);
       setErrors(prev => ({ ...prev, [service]: err.message }));
     } finally {
       setLoading(prev => ({ ...prev, [service]: false }));

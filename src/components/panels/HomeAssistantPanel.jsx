@@ -42,7 +42,6 @@ export default function HomeAssistantPanel({ config }) {
       // Auto-reconnect: if HA is configured+enabled but not connected, try to reconnect
       if (!connected && haConfig?.enabled && haConfig?.url && haConfig?.token && !reconnectAttemptRef.current) {
         reconnectAttemptRef.current = true;
-        console.log('[HA Panel] Not connected but configured — attempting reconnect...');
         connectHomeAssistant().finally(() => {
           // Allow another attempt after 30 seconds
           setTimeout(() => { reconnectAttemptRef.current = false; }, 30000);
@@ -99,7 +98,6 @@ export default function HomeAssistantPanel({ config }) {
         await homeAssistant.toggle(entity.id);
       }
     } catch (error) {
-      console.error('Failed to toggle:', error);
     } finally {
       setLoading(prev => ({ ...prev, [entity.id]: false }));
     }
@@ -157,7 +155,6 @@ export default function HomeAssistantPanel({ config }) {
         brightness: haValue
       });
     } catch (error) {
-      console.error('Failed to set brightness:', error);
     }
   };
 

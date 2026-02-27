@@ -125,7 +125,6 @@ export default function MediaPanel({ config }) {
         await homeAssistant.callService('media_player', service, { entity_id: activePlayer });
       }
     } catch (error) {
-      console.error('Media control failed:', error);
     } finally {
       setLoading(null);
     }
@@ -140,7 +139,6 @@ export default function MediaPanel({ config }) {
         volume_level: newVolume / 100
       });
     } catch (error) {
-      console.error('Volume control failed:', error);
     }
   };
 
@@ -153,7 +151,6 @@ export default function MediaPanel({ config }) {
         seek_position: position
       });
     } catch (error) {
-      console.error('Seek failed:', error);
     }
   };
 

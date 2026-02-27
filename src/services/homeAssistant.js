@@ -32,14 +32,11 @@ class HomeAssistantService {
           .replace('http://', 'ws://')
           .replace(/\/$/, '') + '/api/websocket';
 
-        console.log('[HA] Connecting to:', wsUrl);
-
         this.url = url;
         this.token = token;
         
         // Connection timeout
         const timeout = setTimeout(() => {
-          console.error('[HA] Connection timeout after 10s');
           if (this.ws) {
             this.ws.close();
           }
@@ -49,24 +46,20 @@ class HomeAssistantService {
         this.ws = new WebSocket(wsUrl);
 
         this.ws.onopen = () => {
-          console.log('[HA] WebSocket connected, waiting for auth_required...');
         };
 
         this.ws.onmessage = (event) => {
           const message = JSON.parse(event.data);
-          console.log('[HA] Received:', message.type);
           this.handleMessage(message, resolve, reject, timeout);
         };
 
         this.ws.onerror = (error) => {
           clearTimeout(timeout);
-          console.error('[HA] WebSocket error:', error);
           reject(new Error('WebSocket connection failed - check if HA is accessible'));
         };
 
         this.ws.onclose = (event) => {
           clearTimeout(timeout);
-          console.log('[HA] WebSocket closed:', event.code, event.reason);
           const wasAuthenticated = this.authenticated;
           this.connected = false;
           this.authenticated = false;
@@ -76,13 +69,11 @@ class HomeAssistantService {
             reject(new Error(`Connection closed: ${event.reason || 'Unknown reason'} (code: ${event.code})`));
           } else {
             // Was connected before, attempt reconnect
-            console.log('[HA] Connection lost, attempting reconnect...');
             this.attemptReconnect();
           }
         };
 
       } catch (error) {
-        console.error('[HA] Connect error:', error);
         reject(error);
       }
     });
@@ -91,7 +82,6 @@ class HomeAssistantService {
   handleMessage(message, resolveConnect, rejectConnect, timeout) {
     switch (message.type) {
       case 'auth_required':
-        console.log('[HA] Auth required, sending token...');
         this.ws.send(JSON.stringify({
           type: 'auth',
           access_token: this.token
@@ -100,7 +90,6 @@ class HomeAssistantService {
 
       case 'auth_ok':
         if (timeout) clearTimeout(timeout);
-        console.log('[HA] Authenticated successfully, HA version:', message.ha_version);
         this.connected = true;
         this.authenticated = true;
         this.reconnectAttempts = 0;
@@ -110,7 +99,6 @@ class HomeAssistantService {
 
       case 'auth_invalid':
         if (timeout) clearTimeout(timeout);
-        console.error('[HA] Authentication failed:', message.message);
         if (rejectConnect) rejectConnect(new Error(message.message || 'Invalid access token'));
         break;
 
@@ -168,16 +156,13 @@ class HomeAssistantService {
       await this.sendCommand('subscribe_events', {
         event_type: 'state_changed'
       });
-      console.log('[HA] Subscribed to state changes');
       
       // Get initial states
       const states = await this.sendCommand('get_states');
       states.forEach(state => {
         this.entities[state.entity_id] = state;
       });
-      console.log(`[HA] Loaded ${states.length} entities`);
     } catch (error) {
-      console.error('[HA] Failed to subscribe:', error);
     }
   }
 
@@ -245,14 +230,12 @@ class HomeAssistantService {
 
   attemptReconnect() {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('[HA] Max reconnect attempts reached');
       return;
     }
 
     this.reconnectAttempts++;
     // Faster reconnect for first few attempts (1s, 2s, 3s...), then cap at 5s
     const delay = Math.min(this.reconnectAttempts * 1000, this.reconnectDelay);
-    console.log(`[HA] Attempting reconnect ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}ms`);
 
     setTimeout(() => {
       if (this.url && this.token) {
@@ -260,7 +243,6 @@ class HomeAssistantService {
         const currentAttempts = this.reconnectAttempts;
         this.connect(this.url, this.token)
           .catch((err) => {
-            console.error('[HA] Reconnect failed:', err.message);
             // Restore attempt count and try again
             this.reconnectAttempts = currentAttempts;
             this.attemptReconnect();

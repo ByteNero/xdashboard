@@ -90,13 +90,12 @@ export default function Display() {
 
       if (hasEnabled) {
         try {
-          console.log('[Display] Connecting integrations...', isFirstRun ? '(initial)' : '(config changed)');
+
           await Promise.race([
             connectAllEnabled(),
             new Promise(resolve => setTimeout(resolve, 5000)) // Max 5 second wait
           ]);
         } catch (e) {
-          console.error('Connection error:', e);
         }
       }
 

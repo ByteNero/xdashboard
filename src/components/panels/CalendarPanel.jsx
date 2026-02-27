@@ -143,7 +143,6 @@ export default function CalendarPanel({ config }) {
 
           const response = await fetch(proxyUrl);
           if (!response.ok) {
-            console.error(`[Calendar] Failed to fetch ${calendar.name}: HTTP ${response.status}`);
             continue;
           }
 
@@ -158,7 +157,6 @@ export default function CalendarPanel({ config }) {
 
           allEvents.push(...parsed);
         } catch (err) {
-          console.error(`[Calendar] Error fetching ${calendar.name}:`, err);
         }
       }
 
@@ -176,7 +174,6 @@ export default function CalendarPanel({ config }) {
 
       setEvents(filteredEvents);
     } catch (err) {
-      console.error('[Calendar] Error:', err);
       setError(err.message);
     } finally {
       setLoading(false);

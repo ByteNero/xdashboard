@@ -36,7 +36,6 @@ class ProxmoxService {
       return { success: true };
     } catch (error) {
       this.connected = false;
-      console.error('[Proxmox] Connection failed:', error.message);
       throw error;
     }
   }
@@ -52,7 +51,6 @@ class ProxmoxService {
     const timeout = setTimeout(() => controller.abort(), 15000);
 
     try {
-      console.log(`[Proxmox] Fetching: ${path}`);
       const response = await fetch(proxyUrl, { signal: controller.signal });
       clearTimeout(timeout);
 
@@ -151,7 +149,6 @@ class ProxmoxService {
       this.connected = true;
       this.notifySubscribers();
     } catch (error) {
-      console.error('[Proxmox] Fetch failed:', error.message);
       if (error.message.includes('Failed to fetch') || error.name === 'AbortError') {
         this.connected = false;
       }
@@ -164,14 +161,11 @@ class ProxmoxService {
     this._reconnecting = true;
 
     try {
-      console.log('[Proxmox] Attempting reconnect...');
       const nodesData = await this._fetch('/nodes');
       if (Array.isArray(nodesData)) {
         this.connected = true;
-        console.log('[Proxmox] Reconnected successfully');
       }
     } catch (error) {
-      console.log('[Proxmox] Reconnect failed:', error.message);
     } finally {
       this._reconnecting = false;
     }
@@ -185,7 +179,6 @@ class ProxmoxService {
 
     this._visibilityHandler = () => {
       if (document.visibilityState === 'visible') {
-        console.log('[Proxmox] Tab visible — refreshing data');
         this.fetchAll().catch(() => {});
       }
     };

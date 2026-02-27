@@ -419,9 +419,7 @@ export const useDashboardStore = create(
         
         try {
           setConnectionStatus('homeAssistant', { connected: false, error: null, connecting: true });
-          console.log('[Store] Attempting HA connection to:', config.url);
           const result = await homeAssistant.connect(config.url, config.token);
-          console.log('[Store] HA connected successfully');
           setConnectionStatus('homeAssistant', { 
             connected: true, 
             connecting: false,
@@ -430,7 +428,6 @@ export const useDashboardStore = create(
           });
           return true;
         } catch (error) {
-          console.error('[Store] HA connection failed:', error);
           setConnectionStatus('homeAssistant', { 
             connected: false, 
             connecting: false,
@@ -597,9 +594,7 @@ export const useDashboardStore = create(
 
         try {
           setConnectionStatus('tautulli', { connected: false, error: null, connecting: true });
-          console.log('[Store] Attempting Tautulli connection to:', config.url);
           await tautulli.connect(config.url, config.apiKey);
-          console.log('[Store] Tautulli connected successfully');
           setConnectionStatus('tautulli', {
             connected: true,
             connecting: false,
@@ -607,7 +602,6 @@ export const useDashboardStore = create(
           });
           return true;
         } catch (error) {
-          console.error('[Store] Tautulli connection failed:', error);
           setConnectionStatus('tautulli', {
             connected: false,
             connecting: false,
@@ -657,13 +651,10 @@ export const useDashboardStore = create(
 
         try {
           setConnectionStatus('unifi', { connected: false, error: null, connecting: true });
-          console.log('[Store] Attempting UniFi connection to:', config.url);
           await unifi.connect(config);
-          console.log('[Store] UniFi connected successfully');
           setConnectionStatus('unifi', { connected: true, connecting: false, error: null });
           return true;
         } catch (error) {
-          console.error('[Store] UniFi connection failed:', error);
           setConnectionStatus('unifi', { connected: false, connecting: false, error: error.message });
           return false;
         }
@@ -932,7 +923,6 @@ export const useDashboardStore = create(
       // Migration: merge new panels/fields while keeping user data
       migrate: (persistedState, version) => {
         if (version < STORE_VERSION) {
-          console.log(`[Store] Migrating from v${version} to v${STORE_VERSION}`);
 
           // Merge in any new default panels that don't exist
           const existingPanelIds = persistedState.panels?.map(p => p.id) || [];
@@ -1021,10 +1011,8 @@ const saveToServer = () => {
       });
       if (res.ok) {
         lastServerHash = hash;
-        console.log('[Sync] Saved to server');
       }
     } catch (err) {
-      console.warn('[Sync] Save failed:', err.message);
     }
   }, 1500);
 };
@@ -1091,9 +1079,7 @@ if (typeof window !== 'undefined') {
     const serverData = await loadFromServer();
     if (serverData) {
       applyServerData(serverData);
-      console.log('[Sync] Loaded from server — source of truth');
     } else {
-      console.log('[Sync] Server unavailable, using localStorage fallback');
     }
     serverReady = true;
   })();
@@ -1119,7 +1105,7 @@ if (typeof window !== 'undefined') {
       const serverHash = hashState(serverData);
       if (serverHash !== lastServerHash) {
         applyServerData(serverData);
-        console.log('[Sync] Updated from server (another device changed settings)');
+
       }
     } catch {
       // silent

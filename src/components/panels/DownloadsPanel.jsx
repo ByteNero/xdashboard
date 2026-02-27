@@ -312,7 +312,6 @@ export default function DownloadsPanel({ config }) {
           try {
             const authResult = await delugeRequest('auth.login', [cfg.password], 1);
             if (authResult.error) {
-              console.warn('[Downloads] Deluge auth error:', authResult.error);
             } else if (authResult.result !== true) {
               throw new Error('Authentication failed - check password');
             }
@@ -504,7 +503,6 @@ export default function DownloadsPanel({ config }) {
       setStats(prev => ({ ...prev, [clientId]: clientStats }));
 
     } catch (err) {
-      console.error(`[Downloads] Error fetching ${clientId}:`, err);
       setErrors(prev => ({ ...prev, [clientId]: err.message }));
     } finally {
       setLoading(prev => ({ ...prev, [clientId]: false }));

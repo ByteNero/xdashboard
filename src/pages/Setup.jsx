@@ -356,7 +356,6 @@ function HAEntityConfigurator({ entities, onChange, isConnected }) {
       const allEntities = Object.keys(homeAssistant.entities).map(id => ({
         id, state: homeAssistant.entities[id]
       }));
-      console.log('[HAConfig] Loaded', allEntities.length, 'entities');
       setHaEntities(allEntities);
     }
   };
@@ -1386,10 +1385,9 @@ function ScryptedConfig({ config, onChange }) {
       // Capture Set-Cookie header for cookie-based auth
       // Try both the standard header and our custom header (browsers may block Set-Cookie)
       const setCookie = loginRes.headers.get('set-cookie') || loginRes.headers.get('x-scrypted-cookie');
-      console.log('[Scrypted Test] Cookie header:', setCookie);
 
       const loginData = await loginRes.json();
-      console.log('[Scrypted Test] Login response:', JSON.stringify(loginData));
+
 
       // Scrypted returns different formats depending on version
       // Could be: token, authorization, accessToken, or nested in a response object
@@ -1407,7 +1405,6 @@ function ScryptedConfig({ config, onChange }) {
       setStatus({ success: true, message: 'Login successful! Add camera URLs below.' });
 
     } catch (err) {
-      console.error('[Scrypted Test]', err);
       setStatus({ success: false, error: err.message });
     } finally {
       setTesting(false);

@@ -130,7 +130,6 @@ export default function ClockWeatherPanel({ config }) {
 
           allEvents.push(...parsed);
         } catch (err) {
-          console.error(`[ClockWeather] Error fetching calendar:`, err);
         }
       }
 
@@ -142,7 +141,6 @@ export default function ClockWeatherPanel({ config }) {
 
       setCalendarEvents(filteredEvents);
     } catch (err) {
-      console.error('[ClockWeather] Calendar error:', err);
     }
   }, []); // stable - reads calendars from ref
 

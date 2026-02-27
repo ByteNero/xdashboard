@@ -72,7 +72,6 @@ class WeatherService {
         await this.fetchWeatherForLocation(location);
         this.locations.push(location);
       } catch (error) {
-        console.error(`[Weather] Failed to connect location ${location.name}:`, error);
         location.error = error.message;
         this.locations.push(location); // Still add it so user sees the error
       }
@@ -159,7 +158,6 @@ class WeatherService {
 
       this.notifySubscribers();
     } catch (error) {
-      console.error(`[Weather] Fetch failed for ${location.name}:`, error);
       // Keep stale data if we have it
       if (!location.weather) {
         location.error = error.message;
@@ -216,7 +214,6 @@ class WeatherService {
         forecast = this.processForecast(forecastData);
       }
     } catch (e) {
-      console.warn('[Weather] Forecast fetch failed:', e.message);
     }
 
     return { current, forecast };
@@ -313,7 +310,6 @@ class WeatherService {
       try {
         await this.fetchWeatherForLocation(location);
       } catch (error) {
-        console.warn(`[Weather] Poll failed for ${location.name}:`, error.message);
       }
     }
   }
@@ -324,7 +320,6 @@ class WeatherService {
 
     this._visibilityHandler = () => {
       if (document.visibilityState === 'visible') {
-        console.log('[Weather] Tab visible — refreshing data');
         this._pollAll();
       }
     };

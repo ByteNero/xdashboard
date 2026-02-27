@@ -62,8 +62,6 @@ class UniFiService {
 
     const loginUrl = `${this.baseUrl}${loginPath}`;
 
-    console.log('[UniFi] Logging in to:', loginUrl);
-
     const response = await fetch(
       `/api/proxy?url=${encodeURIComponent(loginUrl)}`,
       {
@@ -88,9 +86,7 @@ class UniFiService {
     if (setCookie) {
       // Extract name=value pairs, strip Path, Secure, HttpOnly etc.
       this.sessionCookie = setCookie.split(';')[0];
-      console.log('[UniFi] Session cookie obtained');
     } else {
-      console.warn('[UniFi] No cookie received from login response');
     }
   }
 
@@ -124,7 +120,6 @@ class UniFiService {
         // Session expired — try re-login once
         if (response.status === 401 && this.authMethod === 'credentials' && !this._retrying) {
           this._retrying = true;
-          console.log('[UniFi] Session expired, re-authenticating...');
           try {
             await this._login();
             const result = await this._fetch(path);
@@ -204,7 +199,6 @@ class UniFiService {
       ]);
       this.notifySubscribers();
     } catch (err) {
-      console.error('[UniFi] fetchAll error:', err);
     }
   }
 
@@ -231,7 +225,6 @@ class UniFiService {
         rxRate: d['rx_bytes-r'] || 0
       }));
     } catch (err) {
-      console.error('[UniFi] fetchDevices error:', err);
     }
   }
 
@@ -258,7 +251,6 @@ class UniFiService {
         oui: c.oui || ''
       }));
     } catch (err) {
-      console.error('[UniFi] fetchClients error:', err);
     }
   }
 
@@ -316,7 +308,6 @@ class UniFiService {
         }
       });
     } catch (err) {
-      console.error('[UniFi] fetchHealth error:', err);
     }
   }
 
@@ -326,7 +317,6 @@ class UniFiService {
 
     this._visibilityHandler = () => {
       if (document.visibilityState === 'visible') {
-        console.log('[UniFi] Tab visible — refreshing data');
         this.fetchAll();
       }
     };

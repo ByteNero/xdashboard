@@ -29,10 +29,8 @@ const registerGo2rtcStream = async (streamName, rtspUrl) => {
       body: JSON.stringify({ streams: { [streamName]: source } })
     });
     const data = await res.json();
-    console.log('[go2rtc] Register stream:', streamName, data);
     return data.results?.[streamName]?.ok !== false;
   } catch (err) {
-    console.error('[go2rtc] Failed to register stream:', err);
     return false;
   }
 };
@@ -84,25 +82,20 @@ const loadGo2rtcPlayer = () => {
             : customElements.get('video-rtc') ? 'video-rtc' : null;
           if (go2rtcElementTag) {
             go2rtcScriptLoaded = true;
-            console.log(`[go2rtc] Loaded player: <${go2rtcElementTag}> from ${src}`);
             resolve();
           } else if (fallbackSrc) {
-            console.warn(`[go2rtc] ${src} loaded but no custom element found, trying ${fallbackSrc}`);
             script.remove();
             tryLoad(fallbackSrc, null, false);
           } else {
-            console.warn('[go2rtc] Script loaded but no custom element registered');
             resolve();
           }
         }, 300);
       };
       script.onerror = () => {
         if (fallbackSrc) {
-          console.warn(`[go2rtc] ${src} not found, trying ${fallbackSrc}`);
           script.remove();
           tryLoad(fallbackSrc, null, false);
         } else {
-          console.warn('[go2rtc] No player script available, falling back to snapshot polling');
           resolve();
         }
       };
@@ -236,13 +229,12 @@ function CameraModal({ cameras, initialCameraId, haBaseUrl, scryptedConfig, inte
           // Step C: Set src via PROPERTY setter — this triggers onconnect() internally
           const wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
           const wsUrl = `${wsProto}//${location.host}/go2rtc/api/ws?src=${streamName}`;
-          console.log(`[go2rtc] Setting player src: ${wsUrl}`);
           el.src = wsUrl;
 
           setGo2rtcReady(true);
           setImgLoaded(true);
         } else {
-          console.error(`[go2rtc] Player not available: tag=${tag}, registered=${tag ? !!customElements.get(tag) : false}`);
+
           setLiveError('go2rtc player not available — check browser console');
         }
         return;

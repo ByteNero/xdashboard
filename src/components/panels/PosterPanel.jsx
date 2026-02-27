@@ -257,7 +257,6 @@ const AddToLibraryButton = ({ item, arrConfig, tmdbApiKey, onAdded }) => {
         if (onAdded) onAdded(item.id);
       }
     } catch (err) {
-      console.error('[Poster] Add failed:', err);
       setError(err.message);
       setTimeout(() => setError(null), 3000);
     } finally {
@@ -566,7 +565,6 @@ export default function PosterPanel({ config }) {
       });
       setGenreMap(map);
     } catch (e) {
-      console.warn('[Poster] Failed to fetch genres:', e);
     }
   }, [tmdbApiKey]);
 
@@ -575,25 +573,14 @@ export default function PosterPanel({ config }) {
     const arr = integrations.arr || {};
     const checkedItems = [...items];
 
-    console.log('[Poster] Checking library status...', {
-      radarrEnabled: arr.radarr?.enabled,
-      radarrUrl: arr.radarr?.url,
-      sonarrEnabled: arr.sonarr?.enabled,
-      sonarrUrl: arr.sonarr?.url,
-      itemCount: items.length
-    });
-
     // Check Radarr for movies
     if (arr.radarr?.enabled && arr.radarr?.url && arr.radarr?.apiKey) {
       try {
         const baseUrl = arr.radarr.url.replace(/\/$/, '');
         const proxyUrl = `/api/proxy?url=${encodeURIComponent(`${baseUrl}/api/v3/movie`)}&apiKey=${arr.radarr.apiKey}`;
-
-        console.log('[Poster] Fetching Radarr library...');
         const res = await fetch(proxyUrl);
         if (res.ok) {
           const radarrMovies = await res.json();
-          console.log(`[Poster] Radarr has ${radarrMovies.length} movies`);
           const tmdbIds = new Set(radarrMovies.map(m => m.tmdbId));
 
           let matchCount = 0;
@@ -605,15 +592,12 @@ export default function PosterPanel({ config }) {
               matchCount++;
             }
           });
-          console.log(`[Poster] Found ${matchCount} movies in Radarr library`);
         } else {
-          console.warn('[Poster] Radarr request failed:', res.status, await res.text());
+          await res.text();
         }
       } catch (e) {
-        console.warn('[Poster] Radarr check failed:', e);
       }
     } else {
-      console.log('[Poster] Radarr not configured or disabled');
     }
 
     // Check Sonarr for TV shows
@@ -621,12 +605,9 @@ export default function PosterPanel({ config }) {
       try {
         const baseUrl = arr.sonarr.url.replace(/\/$/, '');
         const proxyUrl = `/api/proxy?url=${encodeURIComponent(`${baseUrl}/api/v3/series`)}&apiKey=${arr.sonarr.apiKey}`;
-
-        console.log('[Poster] Fetching Sonarr library...');
         const res = await fetch(proxyUrl);
         if (res.ok) {
           const sonarrShows = await res.json();
-          console.log(`[Poster] Sonarr has ${sonarrShows.length} shows`);
           const tvdbIds = new Set(sonarrShows.map(s => s.tvdbId));
 
           // For TV shows, we need to get external IDs from TMDB
@@ -649,15 +630,11 @@ export default function PosterPanel({ config }) {
               }
             }
           }
-          console.log(`[Poster] Found ${matchCount} shows in Sonarr library`);
         } else {
-          console.warn('[Poster] Sonarr request failed:', res.status);
         }
       } catch (e) {
-        console.warn('[Poster] Sonarr check failed:', e);
       }
     } else {
-      console.log('[Poster] Sonarr not configured or disabled');
     }
 
     return checkedItems;
@@ -714,13 +691,11 @@ export default function PosterPanel({ config }) {
             });
           }
         } catch (e) {
-          console.warn(`[Poster] Failed to get TMDB data for ${movie.ids.tmdb}`);
         }
       }
 
       return items;
     } catch (e) {
-      console.warn(`[Poster] Trakt ${source} failed:`, e);
       return [];
     }
   }, [posterConfig.traktClientId, tmdbApiKey]);
@@ -780,7 +755,6 @@ export default function PosterPanel({ config }) {
             allItems.push(...results);
           }
         } catch (e) {
-          console.warn(`[Poster] Failed to fetch ${source}:`, e);
         }
       }
 
@@ -825,7 +799,6 @@ export default function PosterPanel({ config }) {
       setCurrentIndex(0);
 
     } catch (err) {
-      console.error('[Poster] Error:', err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -913,7 +886,6 @@ export default function PosterPanel({ config }) {
     const checkRefresh = setInterval(() => {
       const now = Date.now();
       if (now - lastRefreshRef.current >= refreshInterval) {
-        console.log('[Poster] Periodic refresh triggered');
         lastRefreshRef.current = now;
         fetchContent();
       }

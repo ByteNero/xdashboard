@@ -446,7 +446,6 @@ const runBrowserSpeedTest = (onProgress) => {
           const currentMbps = (totalDlBytes * 8) / (totalDlTime * 1000000);
           onProgress?.({ phase: 'download', value: currentMbps });
         } catch (e) {
-          console.log('[SpeedTest] Download chunk failed:', e.message);
         }
         // Stop early if we have enough data (>2 seconds of test)
         if (totalDlTime > 3) break;
@@ -483,14 +482,12 @@ const runBrowserSpeedTest = (onProgress) => {
           const currentMbps = (totalUlBytes * 8) / (totalUlTime * 1000000);
           onProgress?.({ phase: 'upload', value: currentMbps });
         } catch (e) {
-          console.log('[SpeedTest] Upload chunk failed:', e.message);
         }
         if (totalUlTime > 3) break;
       }
       results.upload = totalUlTime > 0 ? (totalUlBytes * 8) / (totalUlTime * 1000000) : 0;
 
     } catch (err) {
-      console.error('[SpeedTest] Error:', err);
     }
 
     resolve(results);
@@ -620,7 +617,6 @@ export default function UniFiPanel({ config }) {
       setSpeedTestResults(results);
       setSpeedTestRunning(false);
     } catch (err) {
-      console.error('[SpeedTest] Error:', err);
       setSpeedTestError(err.message || 'Speed test failed');
       setSpeedTestRunning(false);
     }

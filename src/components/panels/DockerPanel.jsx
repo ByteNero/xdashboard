@@ -259,7 +259,6 @@ export default function DockerPanel({ config }) {
       setStats({ running, stopped, unhealthy });
 
     } catch (err) {
-      console.error('[Docker] Error:', err);
       setError(err.message);
     } finally {
       setLoading(false);

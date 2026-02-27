@@ -195,7 +195,6 @@ export default function RSSPanel({ config }) {
         const parseError = xml.querySelector('parsererror');
         if (parseError) {
           newStatus[feed.id] = 'error';
-          console.warn(`[RSS] Parse error for ${feed.name}`);
           continue;
         }
 
@@ -210,7 +209,6 @@ export default function RSSPanel({ config }) {
           const hasChannel = xml.querySelector('channel') || xml.querySelector('feed');
           if (!hasChannel) {
             newStatus[feed.id] = 'error';
-            console.warn(`[RSS] Invalid feed format for ${feed.name}`);
             continue;
           }
         }
@@ -240,7 +238,6 @@ export default function RSSPanel({ config }) {
 
         newStatus[feed.id] = 'ok';
       } catch (feedError) {
-        console.warn(`[RSS] Failed to fetch ${feed.name}:`, feedError);
         newStatus[feed.id] = 'error';
       }
     }

@@ -96,7 +96,6 @@ export default function StandbyOverlay() {
   const startIdleTimer = useCallback(() => {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     idleTimerRef.current = setTimeout(() => {
-      console.log('[Standby] Idle timeout reached, activating standby');
       isStandbyRef.current = true;
       setIsStandby(true);
     }, idleMsRef.current);
@@ -108,7 +107,6 @@ export default function StandbyOverlay() {
       return;
     }
     if (isStandbyRef.current) {
-      console.log('[Standby] Interaction detected, waking up');
       isStandbyRef.current = false;
       setIsStandby(false);
     }
@@ -126,8 +124,6 @@ export default function StandbyOverlay() {
     INTERACTION_EVENTS.forEach(evt => {
       document.addEventListener(evt, handleInteraction, { passive: true });
     });
-
-    console.log(`[Standby] Enabled, idle timeout: ${idleMsRef.current / 1000}s`);
     startIdleTimer();
 
     return () => {

@@ -259,7 +259,6 @@ export default function MarketsPanel({ config }) {
         type: 'crypto'
       }));
     } catch (err) {
-      console.error('[Markets] CoinGecko fetch error:', err);
       throw err;
     }
   }, [watchlist, currency]);
@@ -277,7 +276,6 @@ export default function MarketsPanel({ config }) {
         marketChange24h: data.data.market_cap_change_percentage_24h_usd
       };
     } catch (err) {
-      console.error('[Markets] Failed to fetch global stats:', err);
       return null;
     }
   }, []);
@@ -310,7 +308,6 @@ export default function MarketsPanel({ config }) {
           });
         }
       } catch (err) {
-        console.error(`[Markets] Failed to fetch ${asset.symbol}:`, err);
       }
     }
 
