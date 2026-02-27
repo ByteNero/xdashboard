@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Rss, ExternalLink, Clock, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { Rss, Clock, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import { useDashboardStore } from '../../store/dashboardStore';
 import PanelHeader from './PanelHeader';
 import { getLabel } from '../../utils/translations';
@@ -29,28 +29,13 @@ const stripHtml = (html) => {
 const FeedItem = ({ item, feedColor }) => {
   return (
     <div
-      onClick={() => {
-        if (item.link) {
-          window.open(item.link, '_blank', 'noopener,noreferrer');
-        }
-      }}
       style={{
         display: 'block',
         padding: '10px',
         background: 'var(--bg-card)',
         borderRadius: '8px',
         borderLeft: `3px solid ${feedColor || 'var(--accent-primary)'}`,
-        textDecoration: 'none',
-        transition: 'all 0.2s ease',
-        cursor: 'pointer'
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.background = 'var(--bg-secondary)';
-        e.currentTarget.style.transform = 'translateX(2px)';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.background = 'var(--bg-card)';
-        e.currentTarget.style.transform = 'translateX(0)';
+        textDecoration: 'none'
       }}
     >
       <div style={{
@@ -72,7 +57,7 @@ const FeedItem = ({ item, feedColor }) => {
         }}>
           {item.title}
         </div>
-        <ExternalLink size={10} style={{ color: 'var(--text-muted)', flexShrink: 0, marginTop: '2px' }} />
+        <Rss size={10} style={{ color: 'var(--text-muted)', flexShrink: 0, marginTop: '2px', opacity: 0.5 }} />
       </div>
 
       {item.description && (

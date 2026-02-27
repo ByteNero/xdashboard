@@ -19,7 +19,8 @@ import {
   MarketsPanel,
   UniFiPanel,
   PiholePanel,
-  ProxmoxPanel
+  ProxmoxPanel,
+  SonarrCalendarPanel
 } from '../components/panels';
 import StandbyOverlay from '../components/StandbyOverlay';
 import { Loader2 } from 'lucide-react';
@@ -43,7 +44,8 @@ const panelComponents = {
   'markets': MarketsPanel,
   'unifi': UniFiPanel,
   'pihole': PiholePanel,
-  'proxmox': ProxmoxPanel
+  'proxmox': ProxmoxPanel,
+  'sonarr-calendar': SonarrCalendarPanel
 };
 
 export default function Display() {
@@ -62,7 +64,8 @@ export default function Display() {
       weatherLocations: (ints.weatherLocations || []).map(l => ({ id: l.id, enabled: l.enabled, city: l.city })),
       clocks: (ints.clocks || []).map(c => ({ id: c.id, enabled: c.enabled, city: c.city })),
       tautulli: { enabled: ints.tautulli?.enabled, url: ints.tautulli?.url },
-      unifi: { enabled: ints.unifi?.enabled, url: ints.unifi?.url }
+      unifi: { enabled: ints.unifi?.enabled, url: ints.unifi?.url },
+      sonarr: { enabled: ints.arr?.sonarr?.enabled, url: ints.arr?.sonarr?.url }
     });
   };
 

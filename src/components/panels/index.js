@@ -19,3 +19,4 @@ export { default as MarketsPanel } from './MarketsPanel';
 export { default as UniFiPanel } from './UniFiPanel';
 export { default as PiholePanel } from './PiholePanel';
 export { default as ProxmoxPanel } from './ProxmoxPanel';
+export { default as SonarrCalendarPanel } from './SonarrCalendarPanel';

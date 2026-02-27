@@ -4,9 +4,10 @@ import { homeAssistant, uptimeKuma, weather, tautulli } from '../services';
 import { unifi } from '../services/unifi';
 import { pihole } from '../services/pihole';
 import { proxmox } from '../services/proxmox';
+import { sonarr } from '../services/sonarr';
 
 // Increment this when making breaking changes to force cache reset
-const STORE_VERSION = 8;
+const STORE_VERSION = 9;
 
 const defaultPanels = [
   {
@@ -177,6 +178,14 @@ const defaultPanels = [
     enabled: false,
     order: 18,
     config: {}
+  },
+  {
+    id: 'sonarr-calendar',
+    type: 'sonarr-calendar',
+    title: 'TV Calendar',
+    enabled: false,
+    order: 19,
+    config: {}
   }
 ];
 
@@ -338,7 +347,8 @@ export const useDashboardStore = create(
         calendars: { configured: false, connected: false, testedCount: 0, totalCount: 0, totalEvents: 0 },
         unifi: { connected: false, error: null },
         pihole: { connected: false, error: null },
-        proxmox: { connected: false, error: null }
+        proxmox: { connected: false, error: null },
+        sonarrCalendar: { connected: false, error: null }
       },
       
       // Panel management
@@ -702,6 +712,31 @@ export const useDashboardStore = create(
         get().setConnectionStatus('proxmox', { connected: false, error: null });
       },
 
+      connectSonarrCalendar: async () => {
+        const { integrations, setConnectionStatus } = get();
+        const config = integrations.arr?.sonarr;
+
+        if (!config?.enabled || !config?.url || !config?.apiKey) {
+          setConnectionStatus('sonarrCalendar', { connected: false, error: 'Enable Sonarr in Arr stack with URL and API key' });
+          return false;
+        }
+
+        try {
+          setConnectionStatus('sonarrCalendar', { connected: false, error: null, connecting: true });
+          await sonarr.connect(config.url, config.apiKey);
+          setConnectionStatus('sonarrCalendar', { connected: true, connecting: false, error: null });
+          return true;
+        } catch (error) {
+          setConnectionStatus('sonarrCalendar', { connected: false, connecting: false, error: error.message });
+          return false;
+        }
+      },
+
+      disconnectSonarrCalendar: () => {
+        sonarr.disconnect();
+        get().setConnectionStatus('sonarrCalendar', { connected: false, error: null });
+      },
+
       // Test TMDB API connection
       testTmdbConnection: async () => {
         const { integrations, setConnectionStatus, connectionStatus } = get();
@@ -804,7 +839,7 @@ export const useDashboardStore = create(
 
       // Connect all enabled integrations
       connectAllEnabled: async () => {
-        const { integrations, connectHomeAssistant, connectUptimeKuma, connectWeather, connectTautulli, connectUnifi, connectPihole, connectProxmox } = get();
+        const { integrations, connectHomeAssistant, connectUptimeKuma, connectWeather, connectTautulli, connectUnifi, connectPihole, connectProxmox, connectSonarrCalendar } = get();
 
         const promises = [];
 
@@ -836,6 +871,10 @@ export const useDashboardStore = create(
 
         if (integrations.proxmox?.enabled && integrations.proxmox?.url && integrations.proxmox?.tokenId) {
           promises.push(connectProxmox());
+        }
+
+        if (integrations.arr?.sonarr?.enabled && integrations.arr?.sonarr?.url && integrations.arr?.sonarr?.apiKey) {
+          promises.push(connectSonarrCalendar());
         }
 
         if (promises.length > 0) {

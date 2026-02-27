@@ -170,7 +170,8 @@ const panelIcons = {
   'markets': TrendingUp,
   'unifi': Wifi,
   'pihole': Shield,
-  'proxmox': Server
+  'proxmox': Server,
+  'sonarr-calendar': Tv
 };
 
 const availableIcons = [
@@ -2313,12 +2314,17 @@ export default function Setup() {
                   />
                 </div>
                 {integrations.arr?.sonarr?.enabled && (
-                  <ArrServiceInput
-                    service="sonarr"
-                    config={integrations.arr?.sonarr || {}}
-                    onChange={(cfg) => updateIntegration('arr', { ...integrations.arr, sonarr: { ...integrations.arr?.sonarr, ...cfg } })}
-                    testEndpoint="/api/v3/series"
-                  />
+                  <>
+                    <ArrServiceInput
+                      service="sonarr"
+                      config={integrations.arr?.sonarr || {}}
+                      onChange={(cfg) => updateIntegration('arr', { ...integrations.arr, sonarr: { ...integrations.arr?.sonarr, ...cfg } })}
+                      testEndpoint="/api/v3/series"
+                    />
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '8px' }}>
+                      Also powers the <strong>TV Calendar</strong> panel — enable it in Panels to see upcoming episodes.
+                    </div>
+                  </>
                 )}
               </div>
 
