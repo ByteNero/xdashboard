@@ -755,12 +755,12 @@ export const useDashboardStore = create(
 
       // Test TMDB API connection
       testTmdbConnection: async () => {
-        const { integrations, setConnectionStatus, connectionStatus } = get();
+        const { integrations, setConnectionStatus } = get();
         const apiKey = integrations.poster?.tmdbApiKey;
 
         if (!apiKey) {
           setConnectionStatus('poster', {
-            ...connectionStatus.poster,
+            ...get().connectionStatus.poster,
             tmdb: { connected: false, error: 'API key required' }
           });
           return false;
@@ -768,7 +768,7 @@ export const useDashboardStore = create(
 
         try {
           setConnectionStatus('poster', {
-            ...connectionStatus.poster,
+            ...get().connectionStatus.poster,
             tmdb: { connected: false, error: null, connecting: true }
           });
 
@@ -781,16 +781,16 @@ export const useDashboardStore = create(
             throw new Error(`HTTP ${response.status}`);
           }
 
-          const data = await response.json();
+          await response.json();
 
           setConnectionStatus('poster', {
-            ...connectionStatus.poster,
+            ...get().connectionStatus.poster,
             tmdb: { connected: true, connecting: false, error: null }
           });
           return true;
         } catch (error) {
           setConnectionStatus('poster', {
-            ...connectionStatus.poster,
+            ...get().connectionStatus.poster,
             tmdb: { connected: false, connecting: false, error: error.message }
           });
           return false;
@@ -799,12 +799,12 @@ export const useDashboardStore = create(
 
       // Test Trakt API connection
       testTraktConnection: async () => {
-        const { integrations, setConnectionStatus, connectionStatus } = get();
+        const { integrations, setConnectionStatus } = get();
         const clientId = integrations.poster?.traktClientId;
 
         if (!clientId) {
           setConnectionStatus('poster', {
-            ...connectionStatus.poster,
+            ...get().connectionStatus.poster,
             trakt: { connected: false, error: 'Client ID required' }
           });
           return false;
@@ -812,7 +812,7 @@ export const useDashboardStore = create(
 
         try {
           setConnectionStatus('poster', {
-            ...connectionStatus.poster,
+            ...get().connectionStatus.poster,
             trakt: { connected: false, error: null, connecting: true }
           });
 
@@ -832,13 +832,13 @@ export const useDashboardStore = create(
           }
 
           setConnectionStatus('poster', {
-            ...connectionStatus.poster,
+            ...get().connectionStatus.poster,
             trakt: { connected: true, connecting: false, error: null }
           });
           return true;
         } catch (error) {
           setConnectionStatus('poster', {
-            ...connectionStatus.poster,
+            ...get().connectionStatus.poster,
             trakt: { connected: false, connecting: false, error: error.message }
           });
           return false;
