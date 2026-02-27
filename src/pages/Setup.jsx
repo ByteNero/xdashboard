@@ -3624,6 +3624,9 @@ export default function Setup() {
                         </div>
                       ))}
                     </div>
+                    <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '8px', maxWidth: '400px', lineHeight: '1.5' }}>
+                      Overlays are shown in priority order. A maximum of 6 are visible on larger screens, 4 on smaller ones. Clock and Date are always shown and don't count toward the limit.
+                    </p>
                     {/* Stream details sub-toggle — only visible when Plex Activity is enabled */}
                     {settings.standbyOverlays?.tautulliActivity && (
                       <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 12px', background: 'var(--bg-card)', borderRadius: '8px', border: '1px solid var(--border-color)', maxWidth: '400px' }}>

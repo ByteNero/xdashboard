@@ -499,36 +499,40 @@ export default function StandbyOverlay() {
             const activeColor = isLight ? '#facc15' : 'var(--accent-primary)';
 
             return (
-              <button
-                key={entityId}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  homeAssistant.toggle(entityId);
-                }}
-                style={{
-                  width: '56px', height: '56px', borderRadius: '50%',
-                  border: `2px solid ${isOn ? activeColor : 'rgba(255,255,255,0.15)'}`,
-                  background: isOn ? `${activeColor}20` : 'rgba(0,0,0,0.5)',
-                  backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
-                  cursor: 'pointer', display: 'flex', flexDirection: 'column',
-                  alignItems: 'center', justifyContent: 'center', gap: '2px',
-                  transition: 'all 0.2s ease', padding: 0
-                }}
-                title={entity.name}
-              >
-                {isLight ? (
-                  <Lightbulb size={20} style={{ color: isOn ? activeColor : 'rgba(255,255,255,0.4)' }} />
-                ) : (
-                  <Power size={20} style={{ color: isOn ? activeColor : 'rgba(255,255,255,0.4)' }} />
-                )}
+              <div key={entityId} style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px'
+              }}>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    homeAssistant.toggle(entityId);
+                  }}
+                  style={{
+                    width: '72px', height: '72px', borderRadius: '50%',
+                    border: `2px solid ${isOn ? activeColor : 'rgba(255,255,255,0.15)'}`,
+                    background: isOn ? `${activeColor}20` : 'rgba(0,0,0,0.5)',
+                    backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+                    cursor: 'pointer', display: 'flex',
+                    alignItems: 'center', justifyContent: 'center',
+                    transition: 'all 0.2s ease', padding: 0
+                  }}
+                  title={entity.name}
+                >
+                  {isLight ? (
+                    <Lightbulb size={28} style={{ color: isOn ? activeColor : 'rgba(255,255,255,0.4)' }} />
+                  ) : (
+                    <Power size={28} style={{ color: isOn ? activeColor : 'rgba(255,255,255,0.4)' }} />
+                  )}
+                </button>
                 <span style={{
-                  fontSize: '7px', color: isOn ? activeColor : 'rgba(255,255,255,0.3)',
+                  fontSize: '10px', color: isOn ? activeColor : 'rgba(255,255,255,0.4)',
                   textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: '600',
-                  maxWidth: '48px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+                  maxWidth: '80px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  textAlign: 'center'
                 }}>
                   {entity.name}
                 </span>
-              </button>
+              </div>
             );
           })}
         </div>
