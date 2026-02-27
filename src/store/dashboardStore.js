@@ -334,7 +334,8 @@ export const useDashboardStore = create(
         standbyIdleMinutes: 300,
         standbyBackgroundUrl: '',
         standbyBackgroundPreset: 'none',
-        standbyOverlays: { clock: true, date: true, countdowns: false, tautulliActivity: false, weather: false, lights: false, services: false, extraClocks: false, tvCalendar: false },
+        standbyOverlays: { clock: true, date: true, countdowns: false, tautulliActivity: false, weather: false, lights: false, services: false, extraClocks: false, tvCalendar: false, quickActions: false },
+        standbyQuickActions: [], // Max 3 HA entity_ids for standby toggle buttons
         standbyOverlayPosition: 'bottom-left',
         standbyDimOpacity: 0.4,
         standbyStreamDetails: true

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Users, Play, AlertTriangle, Lightbulb, Globe, Tv } from 'lucide-react';
+import { Users, Play, AlertTriangle, Lightbulb, Globe, Tv, Power } from 'lucide-react';
 import { useDashboardStore } from '../store/dashboardStore';
 import { tautulli, homeAssistant, uptimeKuma, weather, sonarr } from '../services';
 import { WeatherIcon } from '../utils/weatherIcons.jsx';
@@ -63,9 +63,11 @@ export default function StandbyOverlay() {
   const [lightsOn, setLightsOn] = useState(0);
   const [lightsTotal, setLightsTotal] = useState(0);
   const [sonarrData, setSonarrData] = useState(null);
+  const [quickActionStates, setQuickActionStates] = useState({});
   const [bgLoaded, setBgLoaded] = useState(false);
   const idleTimerRef = useRef(null);
   const isStandbyRef = useRef(false);
+  const skipWakeRef = useRef(false);
 
   const {
     standbyEnabled = false,
@@ -100,6 +102,10 @@ export default function StandbyOverlay() {
   }, []);
 
   const handleInteraction = useCallback(() => {
+    if (skipWakeRef.current) {
+      skipWakeRef.current = false;
+      return;
+    }
     if (isStandbyRef.current) {
       console.log('[Standby] Interaction detected, waking up');
       isStandbyRef.current = false;
@@ -147,8 +153,36 @@ export default function StandbyOverlay() {
       setLightsOn(0);
       setLightsTotal(0);
       setSonarrData(null);
+      setQuickActionStates({});
     }
   }, [isStandby]);
+
+  // ── Quick Actions — poll HA entity states ──
+  useEffect(() => {
+    if (!isStandby || !standbyOverlays.quickActions) return;
+    const actions = (settings.standbyQuickActions || []).slice(0, 3);
+    if (!actions.length || !homeAssistant.isConnected()) return;
+
+    const updateStates = () => {
+      const entities = homeAssistant.entities || {};
+      const states = {};
+      actions.forEach(entityId => {
+        const entity = entities[entityId];
+        if (entity) {
+          states[entityId] = {
+            state: entity.state,
+            name: entity.attributes?.friendly_name || entityId.split('.').pop().replace(/_/g, ' '),
+            domain: entityId.split('.')[0]
+          };
+        }
+      });
+      setQuickActionStates(states);
+    };
+
+    updateStates();
+    const interval = setInterval(updateStates, 2000);
+    return () => clearInterval(interval);
+  }, [isStandby, standbyOverlays.quickActions, settings.standbyQuickActions]);
 
   // ── Clock tick (only when standby active) ──
   useEffect(() => {
@@ -243,7 +277,7 @@ export default function StandbyOverlay() {
   const now = new Date();
   const tvEpisodes = (sonarrData?.calendar || [])
     .filter(ep => favoriteIds.has(ep.seriesId) && new Date(ep.airDateUtc) >= now)
-    .slice(0, 5);
+    .slice(0, 3);
 
   // ── Background style ──
   const backgroundStyle = (standbyBackgroundUrl && bgLoaded)
@@ -476,6 +510,58 @@ export default function StandbyOverlay() {
           </div>
         )}
       </div>
+
+      {/* ── Quick Action Buttons — always bottom-right ── */}
+      {standbyOverlays.quickActions && Object.keys(quickActionStates).length > 0 && (
+        <div style={{
+          position: 'absolute', bottom: '32px', right: '32px', zIndex: 2,
+          display: 'flex', gap: '12px'
+        }}>
+          {(settings.standbyQuickActions || []).slice(0, 3).map(entityId => {
+            const entity = quickActionStates[entityId];
+            if (!entity) return null;
+            const isOn = entity.state === 'on';
+            const isLight = entity.domain === 'light';
+            const isSwitch = entity.domain === 'switch';
+            const activeColor = isLight ? '#facc15' : 'var(--accent-primary)';
+
+            return (
+              <button
+                key={entityId}
+                onMouseDown={(e) => { e.stopPropagation(); skipWakeRef.current = true; }}
+                onTouchStart={(e) => { e.stopPropagation(); skipWakeRef.current = true; }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  homeAssistant.toggle(entityId);
+                }}
+                style={{
+                  width: '56px', height: '56px', borderRadius: '50%',
+                  border: `2px solid ${isOn ? activeColor : 'rgba(255,255,255,0.15)'}`,
+                  background: isOn ? `${activeColor}20` : 'rgba(0,0,0,0.5)',
+                  backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+                  cursor: 'pointer', display: 'flex', flexDirection: 'column',
+                  alignItems: 'center', justifyContent: 'center', gap: '2px',
+                  transition: 'all 0.2s ease', padding: 0
+                }}
+                title={entity.name}
+              >
+                {isLight ? (
+                  <Lightbulb size={20} style={{ color: isOn ? activeColor : 'rgba(255,255,255,0.4)' }} />
+                ) : (
+                  <Power size={20} style={{ color: isOn ? activeColor : 'rgba(255,255,255,0.4)' }} />
+                )}
+                <span style={{
+                  fontSize: '7px', color: isOn ? activeColor : 'rgba(255,255,255,0.3)',
+                  textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: '600',
+                  maxWidth: '48px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+                }}>
+                  {entity.name}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

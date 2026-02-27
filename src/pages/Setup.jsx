@@ -1894,6 +1894,82 @@ function RSSFeedList({ feeds, onChange }) {
   );
 }
 
+function QuickActionPicker({ actions, onChange, haConnected }) {
+  const [search, setSearch] = useState('');
+  const [showPicker, setShowPicker] = useState(false);
+
+  const allEntities = haConnected ? Object.keys(homeAssistant.entities || {})
+    .filter(id => id.startsWith('light.') || id.startsWith('switch.') || id.startsWith('scene.') || id.startsWith('script.') || id.startsWith('fan.') || id.startsWith('lock.'))
+    .map(id => ({
+      id,
+      name: homeAssistant.entities[id]?.attributes?.friendly_name || id.split('.').pop().replace(/_/g, ' ')
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name)) : [];
+
+  const filtered = search.trim()
+    ? allEntities.filter(e => e.name.toLowerCase().includes(search.toLowerCase()) || e.id.toLowerCase().includes(search.toLowerCase()))
+    : allEntities;
+
+  return (
+    <div>
+      {/* Selected actions */}
+      {actions.map((entityId, i) => {
+        const entity = allEntities.find(e => e.id === entityId);
+        return (
+          <div key={entityId} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'var(--bg-card)', borderRadius: '8px', border: '1px solid var(--border-color)', marginBottom: '6px' }}>
+            <span style={{ fontSize: '13px', color: 'var(--text-primary)', flex: 1 }}>{entity?.name || entityId}</span>
+            <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{entityId.split('.')[0]}</span>
+            <button onClick={() => onChange(actions.filter((_, j) => j !== i))}
+              style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', padding: '2px' }}>
+              <Trash2 size={14} />
+            </button>
+          </div>
+        );
+      })}
+
+      {/* Add button / picker */}
+      {actions.length < 3 && (
+        <>
+          {!showPicker ? (
+            <button onClick={() => setShowPicker(true)} disabled={!haConnected}
+              style={{ padding: '8px 16px', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '6px', color: haConnected ? 'var(--accent-primary)' : 'var(--text-muted)', cursor: haConnected ? 'pointer' : 'not-allowed', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Plus size={14} /> Add Entity ({actions.length}/3)
+            </button>
+          ) : (
+            <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '10px', maxHeight: '200px', display: 'flex', flexDirection: 'column' }}>
+              <input
+                type="text" value={search} onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search entities..."
+                autoFocus
+                style={{ padding: '8px 10px', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '13px', outline: 'none', marginBottom: '8px' }}
+              />
+              <div style={{ flex: 1, overflowY: 'auto', maxHeight: '140px' }}>
+                {filtered.filter(e => !actions.includes(e.id)).slice(0, 30).map(entity => (
+                  <div key={entity.id}
+                    onClick={() => { onChange([...actions, entity.id]); setShowPicker(false); setSearch(''); }}
+                    style={{ padding: '6px 8px', cursor: 'pointer', borderRadius: '4px', fontSize: '12px', color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between', gap: '8px' }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-card)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+                    <span>{entity.name}</span>
+                    <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{entity.id.split('.')[0]}</span>
+                  </div>
+                ))}
+                {filtered.filter(e => !actions.includes(e.id)).length === 0 && (
+                  <div style={{ padding: '10px', fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center' }}>No entities found</div>
+                )}
+              </div>
+              <button onClick={() => { setShowPicker(false); setSearch(''); }}
+                style={{ marginTop: '6px', padding: '4px', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '11px' }}>
+                Cancel
+              </button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 function IntegrationCard({ title, icon: Icon, enabled, onToggle, status, onConnect, onDisconnect, children, language }) {
   const [expanded, setExpanded] = useState(false); // Start collapsed
 
@@ -3536,7 +3612,8 @@ export default function Setup() {
                         { key: 'countdowns', label: 'Countdowns' },
                         { key: 'tautulliActivity', label: 'Plex Activity' },
                         { key: 'extraClocks', label: 'World Clocks' },
-                        { key: 'tvCalendar', label: 'TV Calendar' }
+                        { key: 'tvCalendar', label: 'TV Calendar' },
+                        { key: 'quickActions', label: 'Quick Actions' }
                       ].map(ov => (
                         <div key={ov.key} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 12px', background: 'var(--bg-card)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                           <Toggle
@@ -3555,6 +3632,20 @@ export default function Setup() {
                           onChange={(val) => updateSettings({ standbyStreamDetails: val })}
                         />
                         <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Show stream details (users &amp; titles)</span>
+                      </div>
+                    )}
+
+                    {/* Quick Actions entity picker — only visible when Quick Actions is enabled */}
+                    {settings.standbyOverlays?.quickActions && (
+                      <div style={{ marginTop: '10px', maxWidth: '400px' }}>
+                        <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                          Pick up to 3 Home Assistant entities to toggle from standby (bottom-right). Requires HA connection.
+                        </p>
+                        <QuickActionPicker
+                          actions={settings.standbyQuickActions || []}
+                          onChange={(actions) => updateSettings({ standbyQuickActions: actions })}
+                          haConnected={connectionStatus.homeAssistant?.connected}
+                        />
                       </div>
                     )}
                   </div>
