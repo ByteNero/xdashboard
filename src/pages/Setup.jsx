@@ -3658,7 +3658,6 @@ export default function Setup() {
                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                       {[
                         { id: 'bottom-left', label: 'Bottom Left' },
-                        { id: 'bottom-right', label: 'Bottom Right' },
                         { id: 'top-left', label: 'Top Left' },
                         { id: 'top-right', label: 'Top Right' },
                         { id: 'center-bottom', label: 'Center' }

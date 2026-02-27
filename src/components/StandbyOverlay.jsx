@@ -16,7 +16,6 @@ const INTERACTION_EVENTS = ['mousemove', 'mousedown', 'touchstart', 'keydown', '
 
 const POSITION_STYLES = {
   'bottom-left':    { bottom: '32px', left: '32px' },
-  'bottom-right':   { bottom: '32px', right: '32px', textAlign: 'right', alignItems: 'flex-end' },
   'top-left':       { top: '32px', left: '32px' },
   'top-right':      { top: '32px', right: '32px', textAlign: 'right', alignItems: 'flex-end' },
   'center-bottom':  { bottom: '32px', left: '50%', transform: 'translateX(-50%)', textAlign: 'center', alignItems: 'center' },
@@ -283,6 +282,9 @@ export default function StandbyOverlay() {
     .filter(ep => favoriteIds.has(ep.seriesId) && new Date(ep.airDateUtc) >= now)
     .slice(0, 3);
 
+  // ── Determine if quick actions are active (buttons visible bottom-right) ──
+  const quickActionsActive = standbyOverlays.quickActions && (settings.standbyQuickActions || []).length > 0 && Object.keys(quickActionStates).length > 0;
+
   // ── Card limit based on viewport height ──
   const maxCards = viewportHeight >= 720 ? 6 : viewportHeight >= 550 ? 4 : 3;
 
@@ -309,7 +311,8 @@ export default function StandbyOverlay() {
     );
   }
 
-  if (standbyOverlays.lights && homeAssistant.isConnected()) {
+  // Lights card — skip from main list if quick actions are active (shown above buttons instead)
+  if (standbyOverlays.lights && homeAssistant.isConnected() && !quickActionsActive) {
     cards.push(
       <div key="lights" className="standby-card">
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -482,11 +485,26 @@ export default function StandbyOverlay() {
       </div>
 
       {/* ── Quick Action Buttons — always bottom-right ── */}
-      {standbyOverlays.quickActions && Object.keys(quickActionStates).length > 0 && (
+      {quickActionsActive && (
         <div ref={quickActionsRef} style={{
           position: 'absolute', bottom: '32px', right: '32px', zIndex: 2,
-          display: 'flex', gap: '12px'
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px'
         }}>
+          {/* Lights count above buttons when lights overlay is enabled */}
+          {standbyOverlays.lights && homeAssistant.isConnected() && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: '6px',
+              padding: '6px 14px', borderRadius: '20px',
+              background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+              border: '1px solid rgba(255,255,255,0.06)'
+            }}>
+              <Lightbulb size={14} style={{ color: lightsOn > 0 ? '#facc15' : 'rgba(255,255,255,0.3)' }} />
+              <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)' }}>
+                {lightsOn > 0 ? <><span style={{ color: '#facc15', fontWeight: '600' }}>{lightsOn}</span>/{lightsTotal}</> : 'All off'}
+              </span>
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: '12px' }}>
           {(settings.standbyQuickActions || []).slice(0, 3).map(entityId => {
             const entity = quickActionStates[entityId];
             if (!entity) return null;
@@ -531,6 +549,7 @@ export default function StandbyOverlay() {
               </div>
             );
           })}
+          </div>
         </div>
       )}
     </div>
