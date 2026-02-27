@@ -153,7 +153,7 @@ export default function SonarrCalendarPanel({ config }) {
     return true;
   });
 
-  const itemsPerPage = 6;
+  const itemsPerPage = 8;
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
   const paginated = filtered.slice(currentPage * itemsPerPage, (currentPage + 1) * itemsPerPage);
 
