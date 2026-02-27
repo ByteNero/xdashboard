@@ -390,7 +390,7 @@ export default function StandbyOverlay() {
 
         {/* ── Extra / World Clocks ── */}
         {standbyOverlays.extraClocks && extraClocks.length > 0 && (() => {
-          const clocks = extraClocks.slice(0, 4);
+          const clocks = extraClocks.slice(0, 3);
           const useGrid = clocks.length > 2;
           return (
             <div className="standby-card">
@@ -399,18 +399,18 @@ export default function StandbyOverlay() {
                 <span style={{ fontSize: '11px', color: 'var(--accent-primary)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px' }}>
                   World Clocks
                 </span>
-                {extraClocks.length > 4 && (
+                {extraClocks.length > 3 && (
                   <span style={{ marginLeft: 'auto', fontSize: '10px', color: 'rgba(255,255,255,0.3)' }}>
-                    +{extraClocks.length - 4} more
+                    +{extraClocks.length - 3} more
                   </span>
                 )}
               </div>
               {useGrid ? (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 16px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 20px' }}>
                   {clocks.map(clock => (
                     <div key={clock.id} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                       <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{clock.name}</span>
-                      <span style={{ fontSize: '16px', fontWeight: '600', color: 'rgba(255,255,255,0.85)', fontFamily: 'var(--font-mono, monospace)' }}>
+                      <span style={{ fontSize: '18px', fontWeight: '600', color: 'rgba(255,255,255,0.85)', fontFamily: 'var(--font-mono, monospace)' }}>
                         {time.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: clock.timezone })}
                       </span>
                     </div>
