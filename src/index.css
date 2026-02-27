@@ -786,8 +786,13 @@ html, body {
   flex-direction: column;
   gap: 8px;
   width: 380px;
-  max-height: calc(100vh - 96px);
-  overflow: hidden;
+  max-height: calc(100vh - 64px);
+  overflow-y: auto;
+  scrollbar-width: none;          /* Firefox */
+  -ms-overflow-style: none;       /* IE/Edge */
+}
+.standby-info::-webkit-scrollbar {
+  display: none;                  /* Chrome/Safari */
 }
 
 .standby-clock {
@@ -817,8 +822,8 @@ html, body {
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.06);
-  overflow: hidden;
   min-width: 0;
+  flex-shrink: 0;
 }
 
 .standby-card-row {

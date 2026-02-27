@@ -15,11 +15,11 @@ const GRADIENT_PRESETS = {
 const INTERACTION_EVENTS = ['mousemove', 'mousedown', 'touchstart', 'keydown', 'scroll'];
 
 const POSITION_STYLES = {
-  'bottom-left':    { bottom: '48px', left: '48px' },
-  'bottom-right':   { bottom: '48px', right: '48px', textAlign: 'right', alignItems: 'flex-end' },
-  'top-left':       { top: '48px', left: '48px' },
-  'top-right':      { top: '48px', right: '48px', textAlign: 'right', alignItems: 'flex-end' },
-  'center-bottom':  { bottom: '48px', left: '50%', transform: 'translateX(-50%)', textAlign: 'center', alignItems: 'center' },
+  'bottom-left':    { bottom: '32px', left: '32px' },
+  'bottom-right':   { bottom: '32px', right: '32px', textAlign: 'right', alignItems: 'flex-end' },
+  'top-left':       { top: '32px', left: '32px' },
+  'top-right':      { top: '32px', right: '32px', textAlign: 'right', alignItems: 'flex-end' },
+  'center-bottom':  { bottom: '32px', left: '50%', transform: 'translateX(-50%)', textAlign: 'center', alignItems: 'center' },
 };
 
 // ── Sub-components ──
