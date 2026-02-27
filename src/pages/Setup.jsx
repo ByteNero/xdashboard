@@ -336,8 +336,8 @@ function ConnectionStatus({ status, language }) {
   if (!status) return <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>{t('notConfigured', language)}</span>;
   if (status.connecting) return <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: 'var(--warning)', fontSize: '13px' }}><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />{t('connecting', language)}</span>;
   if (status.connected) return <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: 'var(--success)', fontSize: '13px' }}><Check size={14} />{t('connected', language)}{status.version && ` (v${status.version})`}{status.location && ` - ${status.location}`}</span>;
-  if (status.configured) return <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: 'var(--text-secondary)', fontSize: '13px' }}><Settings size={14} />{t('configured', language)}</span>;
   if (status.error) return <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: 'var(--danger)', fontSize: '13px' }}><X size={14} />{status.error}</span>;
+  if (status.configured) return <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: 'var(--text-secondary)', fontSize: '13px' }}><Settings size={14} />{t('configured', language)}</span>;
   return <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>{t('notConfigured', language)}</span>;
 }
 
@@ -1896,13 +1896,19 @@ function RSSFeedList({ feeds, onChange }) {
 
 function IntegrationCard({ title, icon: Icon, enabled, onToggle, status, onConnect, onDisconnect, children, language }) {
   const [expanded, setExpanded] = useState(false); // Start collapsed
+
+  // If status exists but has no meaningful state and integration is enabled, mark as configured
+  const effectiveStatus = (status && !status.connected && !status.connecting && !status.error && !status.configured && enabled)
+    ? { ...status, configured: true }
+    : status;
+
   return (
     <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '10px', overflow: 'hidden', marginBottom: '16px' }}>
       <div style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '16px', cursor: 'pointer', borderBottom: expanded ? '1px solid var(--border-color)' : 'none' }} onClick={() => setExpanded(!expanded)}>
         <Icon size={24} style={{ color: enabled ? 'var(--accent-primary)' : 'var(--text-muted)', flexShrink: 0 }} />
         <div style={{ flex: 1 }}>
           <div style={{ fontFamily: 'var(--font-display)', fontSize: '14px', fontWeight: '600', letterSpacing: '1px', marginBottom: '4px' }}>{title}</div>
-          <ConnectionStatus status={status} language={language} />
+          <ConnectionStatus status={effectiveStatus} language={language} />
         </div>
         <Toggle checked={enabled} onChange={onToggle} />
         {expanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
@@ -1912,11 +1918,11 @@ function IntegrationCard({ title, icon: Icon, enabled, onToggle, status, onConne
           {children}
           {onConnect && (
             <div style={{ display: 'flex', gap: '12px', marginTop: '20px', paddingTop: '16px', borderTop: '1px solid var(--border-color)' }}>
-              <button onClick={onConnect} disabled={!enabled || status?.connecting}
+              <button onClick={onConnect} disabled={!enabled || effectiveStatus?.connecting}
                 style={{ padding: '10px 20px', background: enabled ? 'var(--accent-glow)' : 'var(--bg-secondary)', border: `1px solid ${enabled ? 'var(--accent-primary)' : 'var(--border-color)'}`, borderRadius: '6px', color: enabled ? 'var(--accent-primary)' : 'var(--text-muted)', cursor: enabled ? 'pointer' : 'not-allowed', fontFamily: 'var(--font-display)', fontSize: '12px', letterSpacing: '1px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                {status?.connecting ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />{t('connecting', language)}</> : <><Check size={14} />{t('testConnection', language)}</>}
+                {effectiveStatus?.connecting ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />{t('connecting', language)}</> : <><Check size={14} />{t('testConnection', language)}</>}
               </button>
-              {status?.connected && (
+              {effectiveStatus?.connected && (
                 <button onClick={onDisconnect} style={{ padding: '10px 20px', background: 'transparent', border: '1px solid var(--danger)', borderRadius: '6px', color: 'var(--danger)', cursor: 'pointer', fontFamily: 'var(--font-display)', fontSize: '12px', letterSpacing: '1px' }}>{t('disconnect', language)}</button>
               )}
             </div>
@@ -1963,6 +1969,12 @@ export default function Setup() {
       }
       if (integrations.unifi?.enabled && integrations.unifi?.url) {
         connectUnifi();
+      }
+      if (integrations.pihole?.enabled && integrations.pihole?.url) {
+        connectPihole();
+      }
+      if (integrations.proxmox?.enabled && integrations.proxmox?.url && integrations.proxmox?.tokenId) {
+        connectProxmox();
       }
     };
     autoConnect();
