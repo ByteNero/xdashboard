@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Tv, Calendar, Clock, CheckCircle, Download, Eye } from 'lucide-react';
+import { Tv, Calendar, Clock, CheckCircle, Download, Eye, Star } from 'lucide-react';
 import { useDashboardStore } from '../../store/dashboardStore';
 import { sonarr } from '../../services/sonarr';
 import { getProxiedUrl } from '../../services/proxy';
@@ -61,7 +61,7 @@ const StatusBadge = ({ episode }) => {
   );
 };
 
-const EpisodeCard = ({ episode }) => {
+const EpisodeCard = ({ episode, isFavorite, onToggleFavorite }) => {
   const posterUrl = episode.poster ? getProxiedUrl(episode.poster) : null;
 
   return (
@@ -90,15 +90,29 @@ const EpisodeCard = ({ episode }) => {
       )}
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '3px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '6px' }}>
-          <div style={{
-            fontSize: '11px',
-            fontWeight: 600,
-            color: 'var(--text-primary)',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap'
-          }}>
-            {episode.seriesTitle}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flex: 1, minWidth: 0 }}>
+            <Star
+              size={12}
+              onClick={(e) => { e.stopPropagation(); onToggleFavorite(); }}
+              style={{
+                flexShrink: 0,
+                cursor: 'pointer',
+                color: isFavorite ? '#eab308' : 'var(--text-muted)',
+                fill: isFavorite ? '#eab308' : 'none',
+                opacity: isFavorite ? 1 : 0.4,
+                transition: 'all 0.2s ease'
+              }}
+            />
+            <div style={{
+              fontSize: '11px',
+              fontWeight: 600,
+              color: 'var(--text-primary)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap'
+            }}>
+              {episode.seriesTitle}
+            </div>
           </div>
           <StatusBadge episode={episode} />
         </div>
@@ -135,9 +149,11 @@ export default function SonarrCalendarPanel({ config }) {
   const [data, setData] = useState({ connected: false, calendar: [] });
   const [filter, setFilter] = useState('upcoming');
   const [currentPage, setCurrentPage] = useState(0);
-  const { settings } = useDashboardStore();
+  const { settings, integrations, toggleFavoriteSeries } = useDashboardStore();
   const language = settings?.language || 'en-GB';
   const t = (key) => getLabel(key, language);
+  const favoriteSeries = integrations?.favoriteSeries || [];
+  const favoriteIds = new Set(favoriteSeries.map(f => f.id));
 
   useEffect(() => {
     return sonarr.subscribe(setData);
@@ -150,6 +166,7 @@ export default function SonarrCalendarPanel({ config }) {
     const airDate = new Date(ep.airDateUtc);
     if (filter === 'upcoming') return airDate >= today;
     if (filter === 'recent') return airDate < today;
+    if (filter === 'favorites') return favoriteIds.has(ep.seriesId);
     return true;
   });
 
@@ -161,7 +178,7 @@ export default function SonarrCalendarPanel({ config }) {
   const handleNext = () => setCurrentPage(p => p < totalPages - 1 ? p + 1 : 0);
 
   const upcomingCount = data.calendar.filter(ep => new Date(ep.airDateUtc) >= today).length;
-  const availableCount = data.calendar.filter(ep => ep.hasFile).length;
+  const favCount = data.calendar.filter(ep => favoriteIds.has(ep.seriesId)).length;
 
   if (!data.connected) {
     return (
@@ -200,6 +217,7 @@ export default function SonarrCalendarPanel({ config }) {
         <div style={{ display: 'flex', gap: '4px', marginBottom: '10px' }}>
           {[
             { key: 'upcoming', label: `Upcoming (${upcomingCount})` },
+            { key: 'favorites', label: `Favorites (${favCount})`, icon: true },
             { key: 'recent', label: `Aired (${data.calendar.length - upcomingCount})` },
             { key: 'all', label: `All (${data.calendar.length})` }
           ].map(tab => (
@@ -208,15 +226,19 @@ export default function SonarrCalendarPanel({ config }) {
               onClick={() => { setFilter(tab.key); setCurrentPage(0); }}
               style={{
                 padding: '3px 8px',
-                background: filter === tab.key ? 'var(--accent-primary)' : 'var(--bg-card)',
+                background: filter === tab.key ? (tab.key === 'favorites' ? '#eab308' : 'var(--accent-primary)') : 'var(--bg-card)',
                 color: filter === tab.key ? '#000' : 'var(--text-muted)',
                 borderRadius: '4px',
                 fontSize: '9px',
                 fontWeight: 600,
                 cursor: 'pointer',
-                transition: 'all 0.2s ease'
+                transition: 'all 0.2s ease',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '3px'
               }}
             >
+              {tab.icon && <Star size={8} style={{ fill: filter === tab.key ? '#000' : 'none' }} />}
               {tab.label}
             </span>
           ))}
@@ -226,12 +248,17 @@ export default function SonarrCalendarPanel({ config }) {
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
           {paginated.length > 0 ? (
             paginated.map(ep => (
-              <EpisodeCard key={ep.id} episode={ep} />
+              <EpisodeCard
+                key={ep.id}
+                episode={ep}
+                isFavorite={favoriteIds.has(ep.seriesId)}
+                onToggleFavorite={() => toggleFavoriteSeries(ep.seriesId, ep.seriesTitle)}
+              />
             ))
           ) : (
             <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)', fontSize: '12px' }}>
               <Tv size={24} style={{ opacity: 0.3, marginBottom: '8px' }} />
-              <div>{filter === 'upcoming' ? 'No upcoming episodes' : 'No episodes found'}</div>
+              <div>{filter === 'favorites' ? 'No favorites yet — tap the star on a show' : filter === 'upcoming' ? 'No upcoming episodes' : 'No episodes found'}</div>
             </div>
           )}
         </div>

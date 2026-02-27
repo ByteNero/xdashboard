@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Users, Play, AlertTriangle, Lightbulb, Globe } from 'lucide-react';
+import { Users, Play, AlertTriangle, Lightbulb, Globe, Tv } from 'lucide-react';
 import { useDashboardStore } from '../store/dashboardStore';
-import { tautulli, homeAssistant, uptimeKuma, weather } from '../services';
+import { tautulli, homeAssistant, uptimeKuma, weather, sonarr } from '../services';
 import { WeatherIcon } from '../utils/weatherIcons.jsx';
 
 // ── Constants ──
@@ -62,6 +62,7 @@ export default function StandbyOverlay() {
   const [monitors, setMonitors] = useState([]);
   const [lightsOn, setLightsOn] = useState(0);
   const [lightsTotal, setLightsTotal] = useState(0);
+  const [sonarrData, setSonarrData] = useState(null);
   const [bgLoaded, setBgLoaded] = useState(false);
   const idleTimerRef = useRef(null);
   const isStandbyRef = useRef(false);
@@ -145,6 +146,7 @@ export default function StandbyOverlay() {
       setMonitors([]);
       setLightsOn(0);
       setLightsTotal(0);
+      setSonarrData(null);
     }
   }, [isStandby]);
 
@@ -204,6 +206,14 @@ export default function StandbyOverlay() {
     return () => clearInterval(interval);
   }, [isStandby, standbyOverlays.lights]);
 
+  // ── Sonarr TV Calendar subscription ──
+  useEffect(() => {
+    if (!isStandby || !standbyOverlays.tvCalendar) return;
+    if (!sonarr.connected) { setSonarrData(null); return; }
+    const unsub = sonarr.subscribe(data => setSonarrData(data));
+    return () => unsub();
+  }, [isStandby, standbyOverlays.tvCalendar]);
+
   // ── Preload background image (with race condition guard) ──
   useEffect(() => {
     if (!standbyBackgroundUrl) { setBgLoaded(false); return; }
@@ -226,6 +236,14 @@ export default function StandbyOverlay() {
   const streamCount = tautulliData?.activity?.streamCount || 0;
   const currentWeather = weatherData?.current;
   const downServices = monitors.filter(m => m.status === 'down');
+
+  // TV Calendar — upcoming episodes for favorited series only
+  const favoriteSeries = integrations?.favoriteSeries || [];
+  const favoriteIds = new Set(favoriteSeries.map(f => f.id));
+  const now = new Date();
+  const tvEpisodes = (sonarrData?.calendar || [])
+    .filter(ep => favoriteIds.has(ep.seriesId) && new Date(ep.airDateUtc) >= now)
+    .slice(0, 5);
 
   // ── Background style ──
   const backgroundStyle = (standbyBackgroundUrl && bgLoaded)
@@ -392,6 +410,64 @@ export default function StandbyOverlay() {
                 </span>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* ── TV Calendar (favorites only) ── */}
+        {standbyOverlays.tvCalendar && sonarr.connected && tvEpisodes.length > 0 && (
+          <div className="standby-card">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+              <Tv size={12} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
+              <span style={{ fontSize: '11px', color: 'var(--accent-primary)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                Upcoming
+              </span>
+              {tvEpisodes.length > 0 && (
+                <span style={{ marginLeft: 'auto', fontSize: '10px', color: 'rgba(255,255,255,0.3)' }}>
+                  {tvEpisodes.length} ep{tvEpisodes.length !== 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
+            {tvEpisodes.map(ep => {
+              const airDate = new Date(ep.airDateUtc);
+              const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+              const tomorrowStart = new Date(todayStart);
+              tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+              const epDay = new Date(airDate.getFullYear(), airDate.getMonth(), airDate.getDate());
+
+              let dayLabel;
+              if (epDay.getTime() === todayStart.getTime()) dayLabel = 'Today';
+              else if (epDay.getTime() === tomorrowStart.getTime()) dayLabel = 'Tomorrow';
+              else {
+                const diff = Math.floor((epDay - todayStart) / 86400000);
+                dayLabel = diff <= 7
+                  ? airDate.toLocaleDateString(language, { weekday: 'short' })
+                  : airDate.toLocaleDateString(language, { month: 'short', day: 'numeric' });
+              }
+
+              const timeLabel = airDate.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit', hour12: false });
+
+              return (
+                <div key={ep.id} style={{ padding: '3px 0', display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                  <span className="standby-truncate" style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)', flex: 1 }}>
+                    {ep.seriesTitle}
+                  </span>
+                  <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', flexShrink: 0, fontFamily: 'var(--font-mono, monospace)' }}>
+                    S{String(ep.seasonNumber).padStart(2, '0')}E{String(ep.episodeNumber).padStart(2, '0')}
+                  </span>
+                  <span style={{ fontSize: '10px', color: 'var(--accent-primary)', flexShrink: 0, fontWeight: 600 }}>
+                    {dayLabel} {timeLabel}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {standbyOverlays.tvCalendar && sonarr.connected && tvEpisodes.length === 0 && favoriteIds.size > 0 && (
+          <div className="standby-card">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', opacity: 0.4 }}>
+              <Tv size={12} />
+              <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>No upcoming episodes</span>
+            </div>
           </div>
         )}
       </div>

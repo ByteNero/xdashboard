@@ -3516,7 +3516,8 @@ export default function Setup() {
                         { key: 'services', label: 'Services Down' },
                         { key: 'countdowns', label: 'Countdowns' },
                         { key: 'tautulliActivity', label: 'Plex Activity' },
-                        { key: 'extraClocks', label: 'World Clocks' }
+                        { key: 'extraClocks', label: 'World Clocks' },
+                        { key: 'tvCalendar', label: 'TV Calendar' }
                       ].map(ov => (
                         <div key={ov.key} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 12px', background: 'var(--bg-card)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                           <Toggle

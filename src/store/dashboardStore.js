@@ -7,7 +7,7 @@ import { proxmox } from '../services/proxmox';
 import { sonarr } from '../services/sonarr';
 
 // Increment this when making breaking changes to force cache reset
-const STORE_VERSION = 9;
+const STORE_VERSION = 10;
 
 const defaultPanels = [
   {
@@ -311,7 +311,8 @@ const defaultIntegrations = {
     url: '',
     tokenId: '', // e.g. user@pam!tokenname
     tokenSecret: ''
-  }
+  },
+  favoriteSeries: []
 };
 
 export const useDashboardStore = create(
@@ -333,7 +334,7 @@ export const useDashboardStore = create(
         standbyIdleMinutes: 300,
         standbyBackgroundUrl: '',
         standbyBackgroundPreset: 'none',
-        standbyOverlays: { clock: true, date: true, countdowns: false, tautulliActivity: false, weather: false, lights: false, services: false, extraClocks: false },
+        standbyOverlays: { clock: true, date: true, countdowns: false, tautulliActivity: false, weather: false, lights: false, services: false, extraClocks: false, tvCalendar: false },
         standbyOverlayPosition: 'bottom-left',
         standbyDimOpacity: 0.4,
         standbyStreamDetails: true
@@ -371,6 +372,20 @@ export const useDashboardStore = create(
         )
       })),
       
+      // Favorite series toggle (for TV Calendar standby overlay)
+      toggleFavoriteSeries: (seriesId, seriesTitle) => set((state) => {
+        const favorites = state.integrations.favoriteSeries || [];
+        const exists = favorites.find(f => f.id === seriesId);
+        return {
+          integrations: {
+            ...state.integrations,
+            favoriteSeries: exists
+              ? favorites.filter(f => f.id !== seriesId)
+              : [...favorites, { id: seriesId, title: seriesTitle }]
+          }
+        };
+      }),
+
       // Integration management
       updateIntegration: (name, config) => set((state) => ({
         integrations: {
