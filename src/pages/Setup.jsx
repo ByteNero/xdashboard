@@ -3622,7 +3622,7 @@ export default function Setup() {
                       ))}
                     </div>
                     <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '8px', maxWidth: '400px', lineHeight: '1.5' }}>
-                      Overlays are shown in priority order. A maximum of 6 are visible on larger screens, 4 on smaller ones. Clock and Date are always shown and don't count toward the limit.
+                      Main overlays are shown in priority order (max 6 on large screens, 4 on smaller). Clock &amp; Date always show. TV Calendar is fixed to the top-right corner. Quick Actions &amp; Lights are fixed to the bottom-right.
                     </p>
                     {/* Stream details sub-toggle — only visible when Plex Activity is enabled */}
                     {settings.standbyOverlays?.tautulliActivity && (
@@ -3659,7 +3659,6 @@ export default function Setup() {
                       {[
                         { id: 'bottom-left', label: 'Bottom Left' },
                         { id: 'top-left', label: 'Top Left' },
-                        { id: 'top-right', label: 'Top Right' },
                         { id: 'center-bottom', label: 'Center' }
                       ].map(pos => (
                         <button

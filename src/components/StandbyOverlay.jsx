@@ -17,7 +17,6 @@ const INTERACTION_EVENTS = ['mousemove', 'mousedown', 'touchstart', 'keydown', '
 const POSITION_STYLES = {
   'bottom-left':    { bottom: '32px', left: '32px' },
   'top-left':       { top: '32px', left: '32px' },
-  'top-right':      { top: '32px', right: '32px', textAlign: 'right', alignItems: 'flex-end' },
   'center-bottom':  { bottom: '32px', left: '50%', transform: 'translateX(-50%)', textAlign: 'center', alignItems: 'center' },
 };
 
@@ -412,45 +411,7 @@ export default function StandbyOverlay() {
     );
   }
 
-  if (standbyOverlays.tvCalendar && sonarr.connected) {
-    if (tvEpisodes.length > 0) {
-      cards.push(
-        <div key="tv" className="standby-card">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-            <Tv size={12} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
-            <span style={{ fontSize: '11px', color: 'var(--accent-primary)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px' }}>Upcoming</span>
-            <span style={{ marginLeft: 'auto', fontSize: '10px', color: 'rgba(255,255,255,0.3)' }}>{tvEpisodes.length} ep{tvEpisodes.length !== 1 ? 's' : ''}</span>
-          </div>
-          {tvEpisodes.map(ep => {
-            const airDate = new Date(ep.airDateUtc);
-            const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-            const tomorrowStart = new Date(todayStart); tomorrowStart.setDate(tomorrowStart.getDate() + 1);
-            const epDay = new Date(airDate.getFullYear(), airDate.getMonth(), airDate.getDate());
-            let dayLabel;
-            if (epDay.getTime() === todayStart.getTime()) dayLabel = 'Today';
-            else if (epDay.getTime() === tomorrowStart.getTime()) dayLabel = 'Tomorrow';
-            else { const diff = Math.floor((epDay - todayStart) / 86400000); dayLabel = diff <= 7 ? airDate.toLocaleDateString(language, { weekday: 'short' }) : airDate.toLocaleDateString(language, { month: 'short', day: 'numeric' }); }
-            const timeLabel = airDate.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit', hour12: false });
-            return (
-              <div key={ep.id} style={{ padding: '3px 0', display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-                <span className="standby-truncate" style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)', flex: 1 }}>{ep.seriesTitle}</span>
-                <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', flexShrink: 0, fontFamily: 'var(--font-mono, monospace)' }}>S{String(ep.seasonNumber).padStart(2, '0')}E{String(ep.episodeNumber).padStart(2, '0')}</span>
-                <span style={{ fontSize: '10px', color: 'var(--accent-primary)', flexShrink: 0, fontWeight: 600 }}>{dayLabel} {timeLabel}</span>
-              </div>
-            );
-          })}
-        </div>
-      );
-    } else if (favoriteIds.size > 0) {
-      cards.push(
-        <div key="tv-idle" className="standby-card">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', opacity: 0.4 }}>
-            <Tv size={12} /><span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>No upcoming episodes</span>
-          </div>
-        </div>
-      );
-    }
-  }
+  // TV Calendar is rendered separately at top-right (not part of card limit)
 
   // ── Slice cards to fit viewport ──
   const visibleCards = cards.slice(0, maxCards);
@@ -483,6 +444,48 @@ export default function StandbyOverlay() {
         )}
         {visibleCards}
       </div>
+
+      {/* ── TV Calendar — fixed top-right ── */}
+      {standbyOverlays.tvCalendar && sonarr.connected && (
+        <div style={{
+          position: 'absolute', top: '32px', right: '32px', zIndex: 2,
+          width: '320px'
+        }}>
+          {tvEpisodes.length > 0 ? (
+            <div className="standby-card">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                <Tv size={12} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
+                <span style={{ fontSize: '11px', color: 'var(--accent-primary)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px' }}>Upcoming</span>
+                <span style={{ marginLeft: 'auto', fontSize: '10px', color: 'rgba(255,255,255,0.3)' }}>{tvEpisodes.length} ep{tvEpisodes.length !== 1 ? 's' : ''}</span>
+              </div>
+              {tvEpisodes.map(ep => {
+                const airDate = new Date(ep.airDateUtc);
+                const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                const tomorrowStart = new Date(todayStart); tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+                const epDay = new Date(airDate.getFullYear(), airDate.getMonth(), airDate.getDate());
+                let dayLabel;
+                if (epDay.getTime() === todayStart.getTime()) dayLabel = 'Today';
+                else if (epDay.getTime() === tomorrowStart.getTime()) dayLabel = 'Tomorrow';
+                else { const diff = Math.floor((epDay - todayStart) / 86400000); dayLabel = diff <= 7 ? airDate.toLocaleDateString(language, { weekday: 'short' }) : airDate.toLocaleDateString(language, { month: 'short', day: 'numeric' }); }
+                const timeLabel = airDate.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit', hour12: false });
+                return (
+                  <div key={ep.id} style={{ padding: '3px 0', display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                    <span className="standby-truncate" style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)', flex: 1 }}>{ep.seriesTitle}</span>
+                    <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', flexShrink: 0, fontFamily: 'var(--font-mono, monospace)' }}>S{String(ep.seasonNumber).padStart(2, '0')}E{String(ep.episodeNumber).padStart(2, '0')}</span>
+                    <span style={{ fontSize: '10px', color: 'var(--accent-primary)', flexShrink: 0, fontWeight: 600 }}>{dayLabel} {timeLabel}</span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : favoriteIds.size > 0 ? (
+            <div className="standby-card">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', opacity: 0.4 }}>
+                <Tv size={12} /><span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>No upcoming episodes</span>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      )}
 
       {/* ── Quick Action Buttons — always bottom-right ── */}
       {quickActionsActive && (
