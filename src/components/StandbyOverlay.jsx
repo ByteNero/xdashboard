@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Users, Play, AlertTriangle, Lightbulb, Globe, Tv, Power } from 'lucide-react';
+import { Users, Play, AlertTriangle, Lightbulb, Globe, Tv, Power, Calendar } from 'lucide-react';
 import { useDashboardStore } from '../store/dashboardStore';
 import { tautulli, homeAssistant, uptimeKuma, weather, sonarr } from '../services';
 import { WeatherIcon } from '../utils/weatherIcons.jsx';
@@ -19,6 +19,39 @@ const POSITION_STYLES = {
   'top-left':       { top: '32px', left: '32px' },
   'center-bottom':  { bottom: '32px', left: '50%', transform: 'translateX(-50%)', textAlign: 'center', alignItems: 'center' },
 };
+
+// ── iCal helpers ──
+
+function parseICalDate(dateStr) {
+  if (dateStr.length === 8) {
+    return new Date(parseInt(dateStr.substring(0, 4)), parseInt(dateStr.substring(4, 6)) - 1, parseInt(dateStr.substring(6, 8)));
+  }
+  const y = parseInt(dateStr.substring(0, 4)), mo = parseInt(dateStr.substring(4, 6)) - 1, d = parseInt(dateStr.substring(6, 8));
+  const h = parseInt(dateStr.substring(9, 11)) || 0, mi = parseInt(dateStr.substring(11, 13)) || 0, s = parseInt(dateStr.substring(13, 15)) || 0;
+  return dateStr.endsWith('Z') ? new Date(Date.UTC(y, mo, d, h, mi, s)) : new Date(y, mo, d, h, mi, s);
+}
+
+function parseICal(icalData) {
+  const events = [];
+  const lines = icalData.replace(/\r\n /g, '').replace(/\r/g, '\n').split('\n');
+  let cur = null;
+  for (const line of lines) {
+    if (line === 'BEGIN:VEVENT') cur = {};
+    else if (line === 'END:VEVENT' && cur) { if (cur.start) events.push(cur); cur = null; }
+    else if (cur) {
+      const ci = line.indexOf(':');
+      if (ci > -1) {
+        let key = line.substring(0, ci); const val = line.substring(ci + 1);
+        const si = key.indexOf(';'); if (si > -1) key = key.substring(0, si);
+        if (key === 'SUMMARY') cur.summary = val.replace(/\\,/g, ',').replace(/\\n/g, '\n');
+        else if (key === 'DTSTART') { cur.start = parseICalDate(val); cur.allDay = val.length === 8; }
+        else if (key === 'DTEND') cur.end = parseICalDate(val);
+        else if (key === 'UID') cur.id = val;
+      }
+    }
+  }
+  return events;
+}
 
 // ── Sub-components ──
 
@@ -62,6 +95,7 @@ export default function StandbyOverlay() {
   const [lightsTotal, setLightsTotal] = useState(0);
   const [sonarrData, setSonarrData] = useState(null);
   const [quickActionStates, setQuickActionStates] = useState({});
+  const [calendarEvents, setCalendarEvents] = useState([]);
   const [bgLoaded, setBgLoaded] = useState(false);
   const [viewportHeight, setViewportHeight] = useState(typeof window !== 'undefined' ? window.innerHeight : 720);
   const idleTimerRef = useRef(null);
@@ -250,6 +284,41 @@ export default function StandbyOverlay() {
     return () => unsub();
   }, [isStandby, standbyOverlays.tvCalendar]);
 
+  // ── iCal/Google Calendar fetch ──
+  useEffect(() => {
+    if (!isStandby || !standbyOverlays.calendar) { setCalendarEvents([]); return; }
+    const calendars = (integrations?.calendars || []).filter(c => c.enabled && c.url);
+    if (!calendars.length) { setCalendarEvents([]); return; }
+
+    const fetchCalendars = async () => {
+      const allEvents = [];
+      const now = new Date();
+      const weekEnd = new Date(now); weekEnd.setDate(now.getDate() + 7);
+
+      for (const cal of calendars) {
+        try {
+          let url = cal.url.trim();
+          if (url.startsWith('webcal://')) url = url.replace('webcal://', 'https://');
+          const res = await fetch(`/api/proxy?url=${encodeURIComponent(url)}`);
+          if (!res.ok) continue;
+          const data = await res.text();
+          const parsed = parseICal(data);
+          parsed.forEach(ev => { ev.color = cal.color || 'var(--accent-primary)'; ev.calendarName = cal.name; });
+          allEvents.push(...parsed);
+        } catch { /* skip failed calendar */ }
+      }
+
+      const filtered = allEvents
+        .filter(e => e.start >= now && e.start < weekEnd)
+        .sort((a, b) => a.start - b.start);
+      setCalendarEvents(filtered);
+    };
+
+    fetchCalendars();
+    const interval = setInterval(fetchCalendars, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [isStandby, standbyOverlays.calendar, integrations?.calendars]);
+
   // ── Preload background image (with race condition guard) ──
   useEffect(() => {
     if (!standbyBackgroundUrl) { setBgLoaded(false); return; }
@@ -411,7 +480,45 @@ export default function StandbyOverlay() {
     );
   }
 
-  // TV Calendar is rendered separately at top-right (not part of card limit)
+  if (standbyOverlays.tvCalendar && sonarr.connected) {
+    if (tvEpisodes.length > 0) {
+      cards.push(
+        <div key="tv" className="standby-card">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+            <Tv size={12} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
+            <span style={{ fontSize: '11px', color: 'var(--accent-primary)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px' }}>Upcoming</span>
+            <span style={{ marginLeft: 'auto', fontSize: '10px', color: 'rgba(255,255,255,0.3)' }}>{tvEpisodes.length} ep{tvEpisodes.length !== 1 ? 's' : ''}</span>
+          </div>
+          {tvEpisodes.map(ep => {
+            const airDate = new Date(ep.airDateUtc);
+            const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const tomorrowStart = new Date(todayStart); tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+            const epDay = new Date(airDate.getFullYear(), airDate.getMonth(), airDate.getDate());
+            let dayLabel;
+            if (epDay.getTime() === todayStart.getTime()) dayLabel = 'Today';
+            else if (epDay.getTime() === tomorrowStart.getTime()) dayLabel = 'Tomorrow';
+            else { const diff = Math.floor((epDay - todayStart) / 86400000); dayLabel = diff <= 7 ? airDate.toLocaleDateString(language, { weekday: 'short' }) : airDate.toLocaleDateString(language, { month: 'short', day: 'numeric' }); }
+            const timeLabel = airDate.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit', hour12: false });
+            return (
+              <div key={ep.id} style={{ padding: '3px 0', display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                <span className="standby-truncate" style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)', flex: 1 }}>{ep.seriesTitle}</span>
+                <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', flexShrink: 0, fontFamily: 'var(--font-mono, monospace)' }}>S{String(ep.seasonNumber).padStart(2, '0')}E{String(ep.episodeNumber).padStart(2, '0')}</span>
+                <span style={{ fontSize: '10px', color: 'var(--accent-primary)', flexShrink: 0, fontWeight: 600 }}>{dayLabel} {timeLabel}</span>
+              </div>
+            );
+          })}
+        </div>
+      );
+    } else if (favoriteIds.size > 0) {
+      cards.push(
+        <div key="tv-idle" className="standby-card">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', opacity: 0.4 }}>
+            <Tv size={12} /><span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>No upcoming episodes</span>
+          </div>
+        </div>
+      );
+    }
+  }
 
   // ── Slice cards to fit viewport ──
   const visibleCards = cards.slice(0, maxCards);
@@ -445,45 +552,37 @@ export default function StandbyOverlay() {
         {visibleCards}
       </div>
 
-      {/* ── TV Calendar — fixed top-right ── */}
-      {standbyOverlays.tvCalendar && sonarr.connected && (
+      {/* ── iCal/Google Calendar — fixed top-right ── */}
+      {standbyOverlays.calendar && calendarEvents.length > 0 && (
         <div style={{
           position: 'absolute', top: '32px', right: '32px', zIndex: 2,
-          width: '320px'
+          width: '320px', display: 'flex', flexDirection: 'column', gap: '8px'
         }}>
-          {tvEpisodes.length > 0 ? (
-            <div className="standby-card">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-                <Tv size={12} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
-                <span style={{ fontSize: '11px', color: 'var(--accent-primary)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px' }}>Upcoming</span>
-                <span style={{ marginLeft: 'auto', fontSize: '10px', color: 'rgba(255,255,255,0.3)' }}>{tvEpisodes.length} ep{tvEpisodes.length !== 1 ? 's' : ''}</span>
-              </div>
-              {tvEpisodes.map(ep => {
-                const airDate = new Date(ep.airDateUtc);
-                const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                const tomorrowStart = new Date(todayStart); tomorrowStart.setDate(tomorrowStart.getDate() + 1);
-                const epDay = new Date(airDate.getFullYear(), airDate.getMonth(), airDate.getDate());
-                let dayLabel;
-                if (epDay.getTime() === todayStart.getTime()) dayLabel = 'Today';
-                else if (epDay.getTime() === tomorrowStart.getTime()) dayLabel = 'Tomorrow';
-                else { const diff = Math.floor((epDay - todayStart) / 86400000); dayLabel = diff <= 7 ? airDate.toLocaleDateString(language, { weekday: 'short' }) : airDate.toLocaleDateString(language, { month: 'short', day: 'numeric' }); }
-                const timeLabel = airDate.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit', hour12: false });
-                return (
-                  <div key={ep.id} style={{ padding: '3px 0', display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-                    <span className="standby-truncate" style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)', flex: 1 }}>{ep.seriesTitle}</span>
-                    <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', flexShrink: 0, fontFamily: 'var(--font-mono, monospace)' }}>S{String(ep.seasonNumber).padStart(2, '0')}E{String(ep.episodeNumber).padStart(2, '0')}</span>
-                    <span style={{ fontSize: '10px', color: 'var(--accent-primary)', flexShrink: 0, fontWeight: 600 }}>{dayLabel} {timeLabel}</span>
-                  </div>
-                );
-              })}
+          <div className="standby-card">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+              <Calendar size={12} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
+              <span style={{ fontSize: '11px', color: 'var(--accent-primary)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px' }}>Calendar</span>
+              <span style={{ marginLeft: 'auto', fontSize: '10px', color: 'rgba(255,255,255,0.3)' }}>{calendarEvents.length} event{calendarEvents.length !== 1 ? 's' : ''}</span>
             </div>
-          ) : favoriteIds.size > 0 ? (
-            <div className="standby-card">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', opacity: 0.4 }}>
-                <Tv size={12} /><span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>No upcoming episodes</span>
-              </div>
-            </div>
-          ) : null}
+            {calendarEvents.slice(0, 5).map((ev, i) => {
+              const evDate = new Date(ev.start);
+              const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+              const tomorrowStart = new Date(todayStart); tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+              const evDay = new Date(evDate.getFullYear(), evDate.getMonth(), evDate.getDate());
+              let dayLabel;
+              if (evDay.getTime() === todayStart.getTime()) dayLabel = 'Today';
+              else if (evDay.getTime() === tomorrowStart.getTime()) dayLabel = 'Tomorrow';
+              else dayLabel = evDate.toLocaleDateString(language, { weekday: 'short', month: 'short', day: 'numeric' });
+              const timeLabel = ev.allDay ? 'All day' : evDate.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit', hour12: false });
+              return (
+                <div key={ev.id || i} style={{ padding: '3px 0', display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                  <span style={{ width: '3px', height: '14px', borderRadius: '2px', background: ev.color || 'var(--accent-primary)', flexShrink: 0 }} />
+                  <span className="standby-truncate" style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)', flex: 1 }}>{ev.summary}</span>
+                  <span style={{ fontSize: '10px', color: 'var(--accent-primary)', flexShrink: 0, fontWeight: 600, whiteSpace: 'nowrap' }}>{dayLabel} {timeLabel}</span>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
