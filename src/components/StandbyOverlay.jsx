@@ -315,7 +315,7 @@ export default function StandbyOverlay() {
     };
 
     fetchCalendars();
-    const interval = setInterval(fetchCalendars, 30 * 60 * 1000);
+    const interval = setInterval(fetchCalendars, 60 * 60 * 1000);
     return () => clearInterval(interval);
   }, [isStandby, standbyOverlays.calendar, integrations?.calendars]);
 
