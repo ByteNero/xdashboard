@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Users, Play, AlertTriangle, Lightbulb, Globe, Tv, Power, Calendar } from 'lucide-react';
+import { Users, Play, AlertTriangle, Lightbulb, Globe, Tv, Power, Calendar, CreditCard } from 'lucide-react';
 import { useDashboardStore } from '../store/dashboardStore';
 import { tautulli, homeAssistant, uptimeKuma, weather, sonarr } from '../services';
 import { WeatherIcon } from '../utils/weatherIcons.jsx';
@@ -353,6 +353,32 @@ export default function StandbyOverlay() {
   // ── Determine if quick actions are active (buttons visible bottom-right) ──
   const quickActionsActive = standbyOverlays.quickActions && (settings.standbyQuickActions || []).length > 0 && Object.keys(quickActionStates).length > 0;
 
+  // ── Upcoming subscriptions (renewing within 5 days) ──
+  const CURRENCY_SYMBOLS = { GBP: '£', USD: '$', EUR: '€' };
+  const upcomingSubs = (() => {
+    if (!standbyOverlays.subscriptions) return [];
+    const subs = (integrations?.subscriptions || []).filter(s => s.enabled !== false && s.name && s.amount);
+    if (!subs.length) return [];
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    return subs
+      .map(s => {
+        const day = Math.min(s.billingDay || 1, 28);
+        let next;
+        if (s.billingCycle === 'yearly') {
+          next = new Date(today.getFullYear(), today.getMonth(), day);
+          if (next < today) next = new Date(today.getFullYear(), today.getMonth() + 1, day);
+        } else {
+          next = new Date(today.getFullYear(), today.getMonth(), day);
+          if (next < today) next = new Date(today.getFullYear(), today.getMonth() + 1, day);
+        }
+        const diffDays = Math.round((next - today) / 86400000);
+        return { ...s, nextDate: next, daysUntil: diffDays };
+      })
+      .filter(s => s.daysUntil >= 0 && s.daysUntil <= 5)
+      .sort((a, b) => a.daysUntil - b.daysUntil)
+      .slice(0, 4);
+  })();
+
   // ── Card limit based on viewport height ──
   const maxCards = viewportHeight >= 720 ? 6 : viewportHeight >= 550 ? 4 : 3;
 
@@ -552,37 +578,62 @@ export default function StandbyOverlay() {
         {visibleCards}
       </div>
 
-      {/* ── iCal/Google Calendar — fixed top-right ── */}
-      {standbyOverlays.calendar && calendarEvents.length > 0 && (
+      {/* ── Top-right column: Calendar + Subscriptions ── */}
+      {((standbyOverlays.calendar && calendarEvents.length > 0) || upcomingSubs.length > 0) && (
         <div style={{
           position: 'absolute', top: '32px', right: '32px', zIndex: 2,
           width: '320px', display: 'flex', flexDirection: 'column', gap: '8px'
         }}>
-          <div className="standby-card">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-              <Calendar size={12} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
-              <span style={{ fontSize: '11px', color: 'var(--accent-primary)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px' }}>Calendar</span>
-              <span style={{ marginLeft: 'auto', fontSize: '10px', color: 'rgba(255,255,255,0.3)' }}>{calendarEvents.length} event{calendarEvents.length !== 1 ? 's' : ''}</span>
+          {/* iCal/Google Calendar */}
+          {standbyOverlays.calendar && calendarEvents.length > 0 && (
+            <div className="standby-card">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                <Calendar size={12} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
+                <span style={{ fontSize: '11px', color: 'var(--accent-primary)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px' }}>Calendar</span>
+                <span style={{ marginLeft: 'auto', fontSize: '10px', color: 'rgba(255,255,255,0.3)' }}>{calendarEvents.length} event{calendarEvents.length !== 1 ? 's' : ''}</span>
+              </div>
+              {calendarEvents.slice(0, 5).map((ev, i) => {
+                const evDate = new Date(ev.start);
+                const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                const tomorrowStart = new Date(todayStart); tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+                const evDay = new Date(evDate.getFullYear(), evDate.getMonth(), evDate.getDate());
+                let dayLabel;
+                if (evDay.getTime() === todayStart.getTime()) dayLabel = 'Today';
+                else if (evDay.getTime() === tomorrowStart.getTime()) dayLabel = 'Tomorrow';
+                else dayLabel = evDate.toLocaleDateString(language, { weekday: 'short', month: 'short', day: 'numeric' });
+                const timeLabel = ev.allDay ? 'All day' : evDate.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit', hour12: false });
+                return (
+                  <div key={ev.id || i} style={{ padding: '3px 0', display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                    <span style={{ width: '3px', height: '14px', borderRadius: '2px', background: ev.color || 'var(--accent-primary)', flexShrink: 0 }} />
+                    <span className="standby-truncate" style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)', flex: 1 }}>{ev.summary}</span>
+                    <span style={{ fontSize: '10px', color: 'var(--accent-primary)', flexShrink: 0, fontWeight: 600, whiteSpace: 'nowrap' }}>{dayLabel} {timeLabel}</span>
+                  </div>
+                );
+              })}
             </div>
-            {calendarEvents.slice(0, 5).map((ev, i) => {
-              const evDate = new Date(ev.start);
-              const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-              const tomorrowStart = new Date(todayStart); tomorrowStart.setDate(tomorrowStart.getDate() + 1);
-              const evDay = new Date(evDate.getFullYear(), evDate.getMonth(), evDate.getDate());
-              let dayLabel;
-              if (evDay.getTime() === todayStart.getTime()) dayLabel = 'Today';
-              else if (evDay.getTime() === tomorrowStart.getTime()) dayLabel = 'Tomorrow';
-              else dayLabel = evDate.toLocaleDateString(language, { weekday: 'short', month: 'short', day: 'numeric' });
-              const timeLabel = ev.allDay ? 'All day' : evDate.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit', hour12: false });
-              return (
-                <div key={ev.id || i} style={{ padding: '3px 0', display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-                  <span style={{ width: '3px', height: '14px', borderRadius: '2px', background: ev.color || 'var(--accent-primary)', flexShrink: 0 }} />
-                  <span className="standby-truncate" style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)', flex: 1 }}>{ev.summary}</span>
-                  <span style={{ fontSize: '10px', color: 'var(--accent-primary)', flexShrink: 0, fontWeight: 600, whiteSpace: 'nowrap' }}>{dayLabel} {timeLabel}</span>
-                </div>
-              );
-            })}
-          </div>
+          )}
+
+          {/* Upcoming subscriptions */}
+          {upcomingSubs.length > 0 && (
+            <div className="standby-card">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                <CreditCard size={12} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
+                <span style={{ fontSize: '11px', color: 'var(--accent-primary)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px' }}>Renewing Soon</span>
+              </div>
+              {upcomingSubs.map(sub => {
+                const dayLabel = sub.daysUntil === 0 ? 'Today' : sub.daysUntil === 1 ? 'Tomorrow' : `In ${sub.daysUntil} days`;
+                const symbol = CURRENCY_SYMBOLS[sub.currency] || sub.currency || '£';
+                return (
+                  <div key={sub.id} style={{ padding: '3px 0', display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                    <span style={{ width: '3px', height: '14px', borderRadius: '2px', background: sub.color || 'var(--accent-primary)', flexShrink: 0 }} />
+                    <span className="standby-truncate" style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)', flex: 1 }}>{sub.name}</span>
+                    <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', flexShrink: 0, fontFamily: 'var(--font-mono, monospace)' }}>{symbol}{parseFloat(sub.amount).toFixed(2)}</span>
+                    <span style={{ fontSize: '10px', color: sub.daysUntil <= 1 ? '#facc15' : 'var(--accent-primary)', flexShrink: 0, fontWeight: 600 }}>{dayLabel}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 

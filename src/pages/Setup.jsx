@@ -3716,6 +3716,7 @@ export default function Setup() {
                         { key: 'extraClocks', label: 'World Clocks' },
                         { key: 'tvCalendar', label: 'TV Calendar' },
                         { key: 'calendar', label: 'Calendar' },
+                        { key: 'subscriptions', label: 'Subscriptions' },
                         { key: 'quickActions', label: 'Quick Actions' }
                       ].map(ov => (
                         <div key={ov.key} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 12px', background: 'var(--bg-card)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
@@ -3728,7 +3729,7 @@ export default function Setup() {
                       ))}
                     </div>
                     <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '8px', maxWidth: '400px', lineHeight: '1.5' }}>
-                      Main overlays are shown in priority order (max 6 on large screens, 4 on smaller). Clock &amp; Date always show. Calendar is fixed to the top-right corner. Quick Actions &amp; Lights are fixed to the bottom-right.
+                      Main overlays are shown in priority order (max 6 on large screens, 4 on smaller). Clock &amp; Date always show. Calendar &amp; Subscriptions are fixed to the top-right corner. Quick Actions &amp; Lights are fixed to the bottom-right.
                     </p>
                     {/* Stream details sub-toggle — only visible when Plex Activity is enabled */}
                     {settings.standbyOverlays?.tautulliActivity && (
