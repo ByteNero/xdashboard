@@ -6,7 +6,7 @@ import {
   Eye, EyeOff, Info, Plus, Trash2, Search, Calendar, Camera, StickyNote, Cpu,
   Lightbulb, Bed, ChefHat, Lock, Thermometer, Tv, DoorOpen, Fan, Power, Film, Book, Bell,
   Download, Upload, Link as LinkIcon, Box, Rss, Image, Star, TrendingUp, Timer, Wifi,
-  Shield, Server
+  Shield, Server, CreditCard
 } from 'lucide-react';
 import { useDashboardStore } from '../store/dashboardStore';
 import { homeAssistant } from '../services';
@@ -125,6 +125,10 @@ const setupTranslations = {
   // Notes
   addNote: { en: 'Add Note', it: 'Aggiungi Nota', es: 'Añadir Nota', fr: 'Ajouter une Note', pt: 'Adicionar Nota', de: 'Notiz hinzufügen', nl: 'Notitie toevoegen' },
   notesHelp: { en: 'Add notes and reminders that will display on the Notes panel.', it: 'Aggiungi note e promemoria che verranno visualizzati nel pannello Note.', es: 'Agrega notas y recordatorios que se mostrarán en el panel de Notas.', fr: 'Ajoutez des notes et rappels qui s\'afficheront dans le panneau Notes.', pt: 'Adicione notas e lembretes que serão exibidos no painel de Notas.', de: 'Fügen Sie Notizen und Erinnerungen hinzu, die im Notizen-Panel angezeigt werden.', nl: 'Voeg notities en herinneringen toe die worden weergegeven in het Notities-paneel.' },
+
+  // Subscriptions
+  subscriptions: { en: 'Subscriptions', it: 'Abbonamenti', es: 'Suscripciones', fr: 'Abonnements', pt: 'Assinaturas', de: 'Abonnements', nl: 'Abonnementen' },
+  subscriptionsHelp: { en: 'Track your recurring subscriptions and monthly costs.', it: 'Tieni traccia dei tuoi abbonamenti ricorrenti e dei costi mensili.', es: 'Rastrea tus suscripciones recurrentes y costos mensuales.', fr: 'Suivez vos abonnements récurrents et vos coûts mensuels.', pt: 'Acompanhe suas assinaturas recorrentes e custos mensais.', de: 'Verfolgen Sie Ihre wiederkehrenden Abonnements und monatlichen Kosten.', nl: 'Houd uw terugkerende abonnementen en maandelijkse kosten bij.' },
 
   // Quick Links
   addLink: { en: 'Add Link', it: 'Aggiungi Link', es: 'Añadir Enlace', fr: 'Ajouter un Lien', pt: 'Adicionar Link', de: 'Link hinzufügen', nl: 'Link toevoegen' },
@@ -1100,6 +1104,96 @@ function CountdownList({ countdowns, onChange }) {
       <button onClick={addCountdown}
         style={{ width: '100%', padding: '12px', background: 'var(--bg-card)', border: '1px dashed var(--border-color)', borderRadius: '8px', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '13px' }}>
         <Plus size={16} /> Add Countdown
+      </button>
+    </div>
+  );
+}
+
+// Subscriptions List Component
+function SubscriptionsList({ subscriptions, onChange }) {
+  const colors = ['#e50914', '#1db954', '#ff9900', '#4285f4', '#9c27b0', '#00d4ff', '#ff5722', '#607d8b'];
+  const categories = ['Streaming', 'Software', 'Utilities', 'Gaming', 'Other'];
+
+  const addSubscription = () => {
+    const newSub = {
+      id: Date.now().toString(),
+      name: '',
+      amount: '',
+      currency: 'GBP',
+      billingDay: new Date().getDate(),
+      billingCycle: 'monthly',
+      category: '',
+      enabled: true,
+      color: colors[Math.floor(Math.random() * colors.length)]
+    };
+    onChange([...subscriptions, newSub]);
+  };
+
+  const update = (id, field, value) => {
+    onChange(subscriptions.map(s => s.id === id ? { ...s, [field]: value } : s));
+  };
+
+  const remove = (id) => {
+    onChange(subscriptions.filter(s => s.id !== id));
+  };
+
+  const inputStyle = { padding: '8px 12px', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '13px' };
+  const selectStyle = { ...inputStyle, colorScheme: 'dark', cursor: 'pointer' };
+
+  return (
+    <div>
+      {subscriptions.map((sub) => (
+        <div key={sub.id} style={{ background: 'var(--bg-secondary)', borderRadius: '8px', padding: '12px', marginBottom: '12px', borderLeft: `3px solid ${sub.color}` }}>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <input
+              type="text"
+              value={sub.name}
+              onChange={(e) => update(sub.id, 'name', e.target.value)}
+              placeholder="Name (e.g. Netflix)"
+              style={{ ...inputStyle, flex: 1, minWidth: '120px' }}
+            />
+            <input
+              type="number"
+              value={sub.amount}
+              onChange={(e) => update(sub.id, 'amount', e.target.value)}
+              placeholder="0.00"
+              step="0.01"
+              min="0"
+              style={{ ...inputStyle, width: '90px' }}
+            />
+            <select value={sub.currency} onChange={(e) => update(sub.id, 'currency', e.target.value)} style={{ ...selectStyle, width: '70px' }}>
+              <option value="GBP">£ GBP</option>
+              <option value="USD">$ USD</option>
+              <option value="EUR">€ EUR</option>
+            </select>
+          </div>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginTop: '8px' }}>
+            <select value={sub.billingDay} onChange={(e) => update(sub.id, 'billingDay', parseInt(e.target.value))} style={{ ...selectStyle, width: '80px' }}>
+              {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
+                <option key={d} value={d}>Day {d}</option>
+              ))}
+            </select>
+            <select value={sub.billingCycle} onChange={(e) => update(sub.id, 'billingCycle', e.target.value)} style={{ ...selectStyle, width: '100px' }}>
+              <option value="monthly">Monthly</option>
+              <option value="yearly">Yearly</option>
+            </select>
+            <select value={sub.category || ''} onChange={(e) => update(sub.id, 'category', e.target.value)} style={{ ...selectStyle, width: '110px' }}>
+              <option value="">Category</option>
+              {categories.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <Toggle checked={sub.enabled} onChange={(enabled) => update(sub.id, 'enabled', enabled)} />
+              <button onClick={() => remove(sub.id)}
+                style={{ padding: '8px', background: 'transparent', border: '1px solid var(--danger)', borderRadius: '6px', color: 'var(--danger)', cursor: 'pointer' }}>
+                <Trash2 size={14} />
+              </button>
+            </div>
+          </div>
+        </div>
+      ))}
+      <button onClick={addSubscription}
+        style={{ width: '100%', padding: '12px', background: 'var(--bg-card)', border: '1px dashed var(--border-color)', borderRadius: '8px', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '13px' }}>
+        <Plus size={16} /> Add Subscription
       </button>
     </div>
   );
@@ -2318,6 +2412,17 @@ export default function Setup() {
                 notes={integrations.notes || []}
                 onChange={(notes) => updateIntegration('notes', notes)}
                 language={language}
+              />
+            </IntegrationCard>
+
+            <IntegrationCard title={t('subscriptions', language)} icon={CreditCard} enabled={(integrations.subscriptions || []).length > 0}
+              onToggle={() => {}} status={(() => { const count = (integrations.subscriptions || []).filter(s => s.enabled && s.name && s.amount).length; return count > 0 ? { connected: true, location: `${count} subscription${count !== 1 ? 's' : ''}` } : null; })()} language={language}>
+              <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '12px', marginBottom: '16px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                {t('subscriptionsHelp', language)}
+              </div>
+              <SubscriptionsList
+                subscriptions={integrations.subscriptions || []}
+                onChange={(subs) => updateIntegration('subscriptions', subs)}
               />
             </IntegrationCard>
 

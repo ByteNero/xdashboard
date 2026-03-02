@@ -20,3 +20,4 @@ export { default as UniFiPanel } from './UniFiPanel';
 export { default as PiholePanel } from './PiholePanel';
 export { default as ProxmoxPanel } from './ProxmoxPanel';
 export { default as SonarrCalendarPanel } from './SonarrCalendarPanel';
+export { default as SubscriptionsPanel } from './SubscriptionsPanel';

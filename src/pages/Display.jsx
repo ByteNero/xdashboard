@@ -20,7 +20,8 @@ import {
   UniFiPanel,
   PiholePanel,
   ProxmoxPanel,
-  SonarrCalendarPanel
+  SonarrCalendarPanel,
+  SubscriptionsPanel
 } from '../components/panels';
 import StandbyOverlay from '../components/StandbyOverlay';
 import { Loader2 } from 'lucide-react';
@@ -45,7 +46,8 @@ const panelComponents = {
   'unifi': UniFiPanel,
   'pihole': PiholePanel,
   'proxmox': ProxmoxPanel,
-  'sonarr-calendar': SonarrCalendarPanel
+  'sonarr-calendar': SonarrCalendarPanel,
+  'subscriptions': SubscriptionsPanel
 };
 
 export default function Display() {

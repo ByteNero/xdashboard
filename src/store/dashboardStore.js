@@ -186,6 +186,14 @@ const defaultPanels = [
     enabled: false,
     order: 19,
     config: {}
+  },
+  {
+    id: 'subscriptions',
+    type: 'subscriptions',
+    title: 'Subscriptions',
+    enabled: false,
+    order: 20,
+    config: {}
   }
 ];
 
@@ -312,6 +320,7 @@ const defaultIntegrations = {
     tokenId: '', // e.g. user@pam!tokenname
     tokenSecret: ''
   },
+  subscriptions: [],
   favoriteSeries: []
 };
 
