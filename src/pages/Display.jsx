@@ -53,9 +53,7 @@ const panelComponents = {
 export default function Display() {
   const containerRef = useRef(null);
   const [isInitializing, setIsInitializing] = useState(true);
-  const [currentPage, setCurrentPage] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
-  const [panelsPerPage, setPanelsPerPage] = useState(5);
+  const [canScroll, setCanScroll] = useState(false);
   const { panels, settings, connectAllEnabled, integrations, connectionStatus } = useDashboardStore();
   const enabledPanels = panels.filter(p => p.enabled).sort((a, b) => (a.order || 0) - (b.order || 0));
   const lastIntegrationsRef = useRef(null);
@@ -151,56 +149,26 @@ export default function Display() {
     };
   }, []);
 
-  // ── Panel page navigation ──
+  // ── Check if panels overflow (show nav button) ──
   useEffect(() => {
     const container = containerRef.current;
-    if (!container || enabledPanels.length === 0) return;
-
-    const calcPages = () => {
-      const containerWidth = container.clientWidth;
-      const panelWidth = 384;
-      const perPage = Math.max(1, Math.floor(containerWidth / panelWidth));
-      const pages = Math.max(1, Math.ceil(enabledPanels.length / perPage));
-      setPanelsPerPage(perPage);
-      setTotalPages(pages);
-      if (currentPage >= pages) setCurrentPage(0);
-    };
-
-    calcPages();
-    const ro = new ResizeObserver(calcPages);
+    if (!container) return;
+    const check = () => setCanScroll(container.scrollWidth > container.clientWidth + 10);
+    check();
+    const ro = new ResizeObserver(check);
     ro.observe(container);
     return () => ro.disconnect();
-  }, [enabledPanels.length, currentPage]);
+  }, [enabledPanels.length]);
 
-  // Track scroll position to update current page indicator
-  useEffect(() => {
+  const jumpForward = useCallback(() => {
     const container = containerRef.current;
     if (!container) return;
-
-    const onScroll = () => {
-      const panelWidth = 384;
-      const scrollLeft = container.scrollLeft;
-      const page = Math.round(scrollLeft / (panelsPerPage * panelWidth));
-      setCurrentPage(Math.min(page, totalPages - 1));
-    };
-
-    container.addEventListener('scroll', onScroll, { passive: true });
-    return () => container.removeEventListener('scroll', onScroll);
-  }, [panelsPerPage, totalPages]);
-
-  const goToPage = useCallback((page) => {
-    const container = containerRef.current;
-    if (!container) return;
-    const panelWidth = 384;
-    const targetScroll = page * panelsPerPage * panelWidth;
-    container.scrollTo({ left: targetScroll, behavior: 'smooth' });
-    setCurrentPage(page);
-  }, [panelsPerPage]);
-
-  const nextPage = useCallback(() => {
-    const next = currentPage < totalPages - 1 ? currentPage + 1 : 0;
-    goToPage(next);
-  }, [currentPage, totalPages, goToPage]);
+    const screenWidth = container.clientWidth;
+    const maxScroll = container.scrollWidth - screenWidth;
+    const newScroll = container.scrollLeft + screenWidth;
+    // If we'd go past the end (or very close), wrap to start
+    container.scrollTo({ left: newScroll > maxScroll + 10 ? 0 : newScroll, behavior: 'smooth' });
+  }, []);
 
   // Prevent context menu and keyboard scroll
   useEffect(() => {
@@ -266,10 +234,10 @@ export default function Display() {
         </div>
       )}
 
-      {/* ── Floating page nav ── */}
-      {totalPages > 1 && (
+      {/* ── Floating next-page button ── */}
+      {canScroll && (
         <button
-          onClick={nextPage}
+          onClick={jumpForward}
           style={{
             position: 'fixed',
             bottom: '14px',
@@ -278,34 +246,19 @@ export default function Display() {
             zIndex: 10,
             display: 'flex',
             alignItems: 'center',
-            gap: '8px',
-            padding: '6px 14px',
-            borderRadius: '20px',
-            border: '1px solid rgba(255,255,255,0.08)',
-            background: 'rgba(0,0,0,0.6)',
+            justifyContent: 'center',
+            width: '40px',
+            height: '40px',
+            borderRadius: '50%',
+            border: '1px solid rgba(255,255,255,0.1)',
+            background: 'rgba(0,0,0,0.55)',
             backdropFilter: 'blur(12px)',
             WebkitBackdropFilter: 'blur(12px)',
             cursor: 'pointer',
             transition: 'opacity 0.3s ease'
           }}
         >
-          <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-            {Array.from({ length: totalPages }, (_, i) => (
-              <span
-                key={i}
-                onClick={(e) => { e.stopPropagation(); goToPage(i); }}
-                style={{
-                  width: i === currentPage ? '16px' : '6px',
-                  height: '6px',
-                  borderRadius: '3px',
-                  background: i === currentPage ? 'var(--accent-primary)' : 'rgba(255,255,255,0.2)',
-                  transition: 'all 0.3s ease',
-                  cursor: 'pointer'
-                }}
-              />
-            ))}
-          </div>
-          <ChevronRight size={14} style={{ color: 'rgba(255,255,255,0.5)' }} />
+          <ChevronRight size={18} style={{ color: 'rgba(255,255,255,0.6)' }} />
         </button>
       )}
 
