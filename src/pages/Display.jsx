@@ -24,7 +24,7 @@ import {
   SubscriptionsPanel
 } from '../components/panels';
 import StandbyOverlay from '../components/StandbyOverlay';
-import { Loader2, ChevronRight } from 'lucide-react';
+import { Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const panelComponents = {
   'home-assistant': HomeAssistantPanel,
@@ -168,8 +168,16 @@ export default function Display() {
     const screenWidth = container.clientWidth;
     const maxScroll = container.scrollWidth - screenWidth;
     const newScroll = container.scrollLeft + screenWidth;
-    // If we'd go past the end (or very close), wrap to start
     container.scrollTo({ left: newScroll > maxScroll + 10 ? 0 : newScroll, behavior: 'smooth' });
+  }, []);
+
+  const jumpBackward = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const screenWidth = container.clientWidth;
+    const maxScroll = container.scrollWidth - screenWidth;
+    const newScroll = container.scrollLeft - screenWidth;
+    container.scrollTo({ left: newScroll < -10 ? maxScroll : newScroll, behavior: 'smooth' });
   }, []);
 
   // Prevent context menu and keyboard scroll
@@ -238,31 +246,54 @@ export default function Display() {
         )}
       </div>
 
-      {/* ── Floating next-page button (outside scroll container) ── */}
+      {/* ── Floating back/forward buttons (outside scroll container) ── */}
       {canScroll && (
-        <button
-          onClick={jumpForward}
-          style={{
-            position: 'fixed',
-            bottom: '14px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 100,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '40px',
-            height: '40px',
-            borderRadius: '50%',
-            border: '1px solid rgba(255,255,255,0.1)',
-            background: 'rgba(0,0,0,0.55)',
-            backdropFilter: 'blur(12px)',
-            WebkitBackdropFilter: 'blur(12px)',
-            cursor: 'pointer'
-          }}
-        >
-          <ChevronRight size={18} style={{ color: 'rgba(255,255,255,0.6)' }} />
-        </button>
+        <div style={{
+          position: 'fixed',
+          bottom: '14px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 100,
+          display: 'flex',
+          gap: '8px'
+        }}>
+          <button
+            onClick={jumpBackward}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '40px',
+              height: '40px',
+              borderRadius: '50%',
+              border: '1px solid rgba(255,255,255,0.1)',
+              background: 'rgba(0,0,0,0.55)',
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
+              cursor: 'pointer'
+            }}
+          >
+            <ChevronLeft size={18} style={{ color: 'rgba(255,255,255,0.6)' }} />
+          </button>
+          <button
+            onClick={jumpForward}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '40px',
+              height: '40px',
+              borderRadius: '50%',
+              border: '1px solid rgba(255,255,255,0.1)',
+              background: 'rgba(0,0,0,0.55)',
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
+              cursor: 'pointer'
+            }}
+          >
+            <ChevronRight size={18} style={{ color: 'rgba(255,255,255,0.6)' }} />
+          </button>
+        </div>
       )}
 
       {/* Standby / Screensaver overlay */}
