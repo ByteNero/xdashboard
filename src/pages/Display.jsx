@@ -151,14 +151,16 @@ export default function Display() {
 
   // ── Check if panels overflow (show nav button) ──
   useEffect(() => {
+    if (isInitializing) return;
     const container = containerRef.current;
     if (!container) return;
     const check = () => setCanScroll(container.scrollWidth > container.clientWidth + 10);
-    check();
+    // Small delay to let panels render and get their widths
+    const timer = setTimeout(check, 200);
     const ro = new ResizeObserver(check);
     ro.observe(container);
-    return () => ro.disconnect();
-  }, [enabledPanels.length]);
+    return () => { clearTimeout(timer); ro.disconnect(); };
+  }, [enabledPanels.length, isInitializing]);
 
   const jumpForward = useCallback(() => {
     const container = containerRef.current;
