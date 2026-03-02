@@ -206,35 +206,37 @@ export default function Display() {
   const uiScale = settings.uiScale ? parseFloat(settings.uiScale) : 1;
 
   return (
-    <div ref={containerRef} className="display-container" style={{
-      '--dashboard-height': dashboardHeight,
-      ...(uiScale !== 1 ? { zoom: uiScale } : {})
-    }}>
-      {enabledPanels.map((panel) => {
-        const PanelComponent = panelComponents[panel.type];
-        if (!PanelComponent) {
-          return (
-            <div key={panel.id} className="panel">
-              <div className="panel-header"><h2>Unknown Panel</h2></div>
-              <div className="panel-content">
-                <p style={{ color: 'var(--text-muted)' }}>Panel type "{panel.type}" not found</p>
+    <>
+      <div ref={containerRef} className="display-container" style={{
+        '--dashboard-height': dashboardHeight,
+        ...(uiScale !== 1 ? { zoom: uiScale } : {})
+      }}>
+        {enabledPanels.map((panel) => {
+          const PanelComponent = panelComponents[panel.type];
+          if (!PanelComponent) {
+            return (
+              <div key={panel.id} className="panel">
+                <div className="panel-header"><h2>Unknown Panel</h2></div>
+                <div className="panel-content">
+                  <p style={{ color: 'var(--text-muted)' }}>Panel type "{panel.type}" not found</p>
+                </div>
               </div>
+            );
+          }
+          return <PanelComponent key={panel.id} config={panel.config} title={panel.title} />;
+        })}
+
+        {enabledPanels.length === 0 && (
+          <div className="panel" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100vw' }}>
+            <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+              <p style={{ fontSize: '24px', marginBottom: '8px' }}>No panels enabled</p>
+              <p>Go to /setup to configure your dashboard</p>
             </div>
-          );
-        }
-        return <PanelComponent key={panel.id} config={panel.config} title={panel.title} />;
-      })}
-
-      {enabledPanels.length === 0 && (
-        <div className="panel" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100vw' }}>
-          <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
-            <p style={{ fontSize: '24px', marginBottom: '8px' }}>No panels enabled</p>
-            <p>Go to /setup to configure your dashboard</p>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* ── Floating next-page button ── */}
+      {/* ── Floating next-page button (outside scroll container) ── */}
       {canScroll && (
         <button
           onClick={jumpForward}
@@ -243,7 +245,7 @@ export default function Display() {
             bottom: '14px',
             left: '50%',
             transform: 'translateX(-50%)',
-            zIndex: 10,
+            zIndex: 100,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -254,8 +256,7 @@ export default function Display() {
             background: 'rgba(0,0,0,0.55)',
             backdropFilter: 'blur(12px)',
             WebkitBackdropFilter: 'blur(12px)',
-            cursor: 'pointer',
-            transition: 'opacity 0.3s ease'
+            cursor: 'pointer'
           }}
         >
           <ChevronRight size={18} style={{ color: 'rgba(255,255,255,0.6)' }} />
@@ -281,6 +282,6 @@ export default function Display() {
       }}>
         XDASHBOARD
       </div>
-    </div>
+    </>
   );
 }
