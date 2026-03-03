@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Server, Cpu, HardDrive, MemoryStick, MonitorSmartphone, Container, ArrowUpDown, Clock } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Server, Cpu, HardDrive, MemoryStick, MonitorSmartphone, Container, ArrowUpDown, Clock, Play, Square, Loader2, AlertTriangle } from 'lucide-react';
 import { useDashboardStore } from '../../store/dashboardStore';
 import PanelHeader from './PanelHeader';
 import { proxmox } from '../../services/proxmox';
@@ -79,10 +79,26 @@ const NodeCard = ({ node }) => (
   </div>
 );
 
-const GuestRow = ({ guest }) => {
+const GuestRow = ({ guest, actionLoading, confirmStop, onStart, onStop, onConfirmStop, onCancelStop }) => {
   const isRunning = guest.status === 'running';
   const cpuPct = guest.cpus > 0 ? (guest.cpu * 100) : 0;
   const memPct = guest.maxmem > 0 ? (guest.mem / guest.maxmem * 100) : 0;
+  const guestKey = `${guest.node}-${guest.vmid}`;
+  const isLoading = actionLoading === guestKey;
+  const isConfirming = confirmStop === guestKey;
+
+  const btnStyle = {
+    background: 'transparent',
+    border: 'none',
+    padding: '3px',
+    cursor: isLoading ? 'default' : 'pointer',
+    borderRadius: '4px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    opacity: isLoading ? 0.5 : 1,
+    transition: 'background 0.15s'
+  };
 
   return (
     <div style={{
@@ -135,9 +151,47 @@ const GuestRow = ({ guest }) => {
           </span>
         </>
       )}
-      {!isRunning && (
+      {!isRunning && !isLoading && (
         <span style={{ fontSize: '8px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>{guest.status}</span>
       )}
+
+      {/* Action buttons */}
+      {isLoading ? (
+        <Loader2 size={12} style={{ color: 'var(--accent-primary)', animation: 'spin 1s linear infinite', flexShrink: 0 }} />
+      ) : isConfirming ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}>
+          <button
+            onClick={() => onConfirmStop(guest)}
+            style={{ ...btnStyle, background: 'rgba(239, 68, 68, 0.2)' }}
+            title="Confirm stop"
+          >
+            <Square size={10} style={{ color: 'var(--danger)', fill: 'var(--danger)' }} />
+          </button>
+          <button
+            onClick={onCancelStop}
+            style={{ ...btnStyle, fontSize: '9px', color: 'var(--text-muted)', padding: '2px 4px' }}
+            title="Cancel"
+          >
+            ✕
+          </button>
+        </div>
+      ) : isRunning ? (
+        <button
+          onClick={() => onStop(guest)}
+          style={btnStyle}
+          title="Stop"
+        >
+          <Square size={10} style={{ color: 'var(--danger)' }} />
+        </button>
+      ) : guest.status === 'stopped' ? (
+        <button
+          onClick={() => onStart(guest)}
+          style={btnStyle}
+          title="Start"
+        >
+          <Play size={10} style={{ color: 'var(--success)', fill: 'var(--success)' }} />
+        </button>
+      ) : null}
     </div>
   );
 };
@@ -145,6 +199,9 @@ const GuestRow = ({ guest }) => {
 export default function ProxmoxPanel({ config }) {
   const [data, setData] = useState(null);
   const [tab, setTab] = useState('all');
+  const [actionLoading, setActionLoading] = useState(null);
+  const [confirmStop, setConfirmStop] = useState(null);
+  const [actionError, setActionError] = useState(null);
   const { settings } = useDashboardStore();
   const language = settings?.language || 'en-GB';
   const t = (key) => getLabel(key, language);
@@ -152,6 +209,55 @@ export default function ProxmoxPanel({ config }) {
   useEffect(() => {
     const unsub = proxmox.subscribe(setData);
     return unsub;
+  }, []);
+
+  // Auto-clear confirm state after 5 seconds
+  useEffect(() => {
+    if (!confirmStop) return;
+    const timer = setTimeout(() => setConfirmStop(null), 5000);
+    return () => clearTimeout(timer);
+  }, [confirmStop]);
+
+  // Auto-clear error after 4 seconds
+  useEffect(() => {
+    if (!actionError) return;
+    const timer = setTimeout(() => setActionError(null), 4000);
+    return () => clearTimeout(timer);
+  }, [actionError]);
+
+  const handleStart = useCallback(async (guest) => {
+    const key = `${guest.node}-${guest.vmid}`;
+    setActionLoading(key);
+    setActionError(null);
+    try {
+      await proxmox.startGuest(guest.node, guest.type, guest.vmid);
+    } catch (err) {
+      setActionError(err.message);
+    } finally {
+      setActionLoading(null);
+    }
+  }, []);
+
+  const handleStopRequest = useCallback((guest) => {
+    setConfirmStop(`${guest.node}-${guest.vmid}`);
+  }, []);
+
+  const handleConfirmStop = useCallback(async (guest) => {
+    const key = `${guest.node}-${guest.vmid}`;
+    setConfirmStop(null);
+    setActionLoading(key);
+    setActionError(null);
+    try {
+      await proxmox.stopGuest(guest.node, guest.type, guest.vmid);
+    } catch (err) {
+      setActionError(err.message);
+    } finally {
+      setActionLoading(null);
+    }
+  }, []);
+
+  const handleCancelStop = useCallback(() => {
+    setConfirmStop(null);
   }, []);
 
   if (!data || !data.nodes?.length) {
@@ -228,10 +334,32 @@ export default function ProxmoxPanel({ config }) {
           </span>
         </div>
 
+        {/* Action error */}
+        {actionError && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '6px',
+            padding: '6px 8px', marginBottom: '6px',
+            background: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--danger)',
+            borderRadius: '6px', fontSize: '10px', color: 'var(--danger)'
+          }}>
+            <AlertTriangle size={12} style={{ flexShrink: 0 }} />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{actionError}</span>
+          </div>
+        )}
+
         {/* Guest list */}
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
           {filteredGuests.map(guest => (
-            <GuestRow key={`${guest.node}-${guest.vmid}`} guest={guest} />
+            <GuestRow
+              key={`${guest.node}-${guest.vmid}`}
+              guest={guest}
+              actionLoading={actionLoading}
+              confirmStop={confirmStop}
+              onStart={handleStart}
+              onStop={handleStopRequest}
+              onConfirmStop={handleConfirmStop}
+              onCancelStop={handleCancelStop}
+            />
           ))}
           {filteredGuests.length === 0 && (
             <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '20px', fontSize: '11px' }}>
@@ -240,6 +368,10 @@ export default function ProxmoxPanel({ config }) {
           )}
         </div>
       </div>
+
+      <style>{`
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      `}</style>
     </div>
   );
 }

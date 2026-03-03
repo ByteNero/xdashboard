@@ -87,6 +87,54 @@ class ProxmoxService {
     }
   }
 
+  async _post(path) {
+    const url = `${this.baseUrl}/api2/json${path}`;
+    const headers = JSON.stringify({
+      Authorization: `PVEAPIToken=${this.tokenId}=${this.tokenSecret}`
+    });
+    const proxyUrl = `/api/proxy?url=${encodeURIComponent(url)}&headers=${encodeURIComponent(headers)}`;
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
+
+    try {
+      const response = await fetch(proxyUrl, {
+        method: 'POST',
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          throw new Error('Permission denied — API token needs VM.PowerMgmt privilege');
+        }
+        const errorText = await response.text().catch(() => '');
+        throw new Error(`HTTP ${response.status}${errorText ? ': ' + errorText.slice(0, 100) : ''}`);
+      }
+
+      const text = await response.text();
+      try {
+        return JSON.parse(text).data;
+      } catch (e) {
+        return text;
+      }
+    } catch (error) {
+      clearTimeout(timeout);
+      throw error;
+    }
+  }
+
+  async startGuest(node, type, vmid) {
+    await this._post(`/nodes/${node}/${type}/${vmid}/status/start`);
+    // Refresh data after a short delay to pick up new status
+    setTimeout(() => this.fetchAll().catch(() => {}), 2000);
+  }
+
+  async stopGuest(node, type, vmid) {
+    await this._post(`/nodes/${node}/${type}/${vmid}/status/stop`);
+    setTimeout(() => this.fetchAll().catch(() => {}), 2000);
+  }
+
   async fetchAll() {
     if (!this.connected && this.nodes.length > 0) {
       await this.attemptReconnect();
