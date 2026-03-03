@@ -27,16 +27,16 @@ const ProgressBar = ({ value, max, color, label }) => {
   const pct = max > 0 ? (value / max * 100) : 0;
   return (
     <div style={{ flex: 1 }}>
-      {label && <div style={{ fontSize: '8px', color: 'var(--text-muted)', marginBottom: '3px', display: 'flex', justifyContent: 'space-between' }}>
+      {label && <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '3px', display: 'flex', justifyContent: 'space-between' }}>
         <span>{label}</span>
         <span>{pct.toFixed(1)}%</span>
       </div>}
-      <div style={{ height: 4, background: 'var(--bg-secondary)', borderRadius: 2, overflow: 'hidden' }}>
+      <div style={{ height: 5, background: 'var(--bg-secondary)', borderRadius: 3, overflow: 'hidden' }}>
         <div style={{
           height: '100%',
           width: `${Math.min(pct, 100)}%`,
           background: pct > 90 ? 'var(--danger)' : pct > 70 ? 'var(--warning)' : color || 'var(--accent-primary)',
-          borderRadius: 2,
+          borderRadius: 3,
           transition: 'width 0.5s ease'
         }} />
       </div>
@@ -46,7 +46,7 @@ const ProgressBar = ({ value, max, color, label }) => {
 
 const StatusDot = ({ status }) => (
   <span style={{
-    width: 6, height: 6, borderRadius: '50%',
+    width: 8, height: 8, borderRadius: '50%',
     background: status === 'running' || status === 'online' ? 'var(--success)' : status === 'stopped' ? 'var(--danger)' : 'var(--warning)',
     display: 'inline-block',
     flexShrink: 0
@@ -63,10 +63,10 @@ const NodeCard = ({ node }) => (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
         <StatusDot status={node.status} />
-        <span style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-primary)' }}>{node.node}</span>
+        <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)' }}>{node.node}</span>
       </div>
-      <span style={{ fontSize: '8px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '3px' }}>
-        <Clock size={8} /> {formatUptime(node.uptime)}
+      <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+        <Clock size={12} /> {formatUptime(node.uptime)}
       </span>
     </div>
     <div style={{ display: 'flex', gap: '8px' }}>
@@ -106,23 +106,23 @@ const GuestRow = ({ guest, actionLoading, confirmStop, onStart, onStop, onConfir
     <div style={{
       display: 'flex',
       alignItems: 'center',
-      gap: '8px',
-      padding: '6px 8px',
+      gap: '10px',
+      padding: '8px 10px',
       background: 'var(--bg-card)',
-      borderRadius: '6px',
+      borderRadius: '8px',
       borderLeft: `3px solid ${isRunning ? 'var(--success)' : 'var(--danger)'}`
     }}>
       <StatusDot status={guest.status} />
-      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0, flex: '0 0 auto', width: '30px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', minWidth: 0, flex: '0 0 auto', width: '40px' }}>
         {guest.type === 'lxc'
-          ? <Container size={10} style={{ color: 'var(--accent-secondary)', flexShrink: 0 }} />
-          : <MonitorSmartphone size={10} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
+          ? <Container size={14} style={{ color: 'var(--accent-secondary)', flexShrink: 0 }} />
+          : <MonitorSmartphone size={14} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
         }
-        <span style={{ fontSize: '8px', color: 'var(--text-muted)' }}>{guest.vmid}</span>
+        <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{guest.vmid}</span>
       </div>
       <span style={{
-        fontSize: '10px',
-        fontWeight: '600',
+        fontSize: '13px',
+        fontWeight: '500',
         color: 'var(--text-primary)',
         flex: 1,
         overflow: 'hidden',
@@ -133,20 +133,20 @@ const GuestRow = ({ guest, actionLoading, confirmStop, onStart, onStop, onConfir
       {isRunning && (
         <>
           <span style={{
-            fontSize: '8px',
+            fontSize: '11px',
             color: cpuPct > 80 ? 'var(--danger)' : 'var(--text-muted)',
             fontFamily: 'var(--font-mono, monospace)',
-            minWidth: '38px',
+            minWidth: '44px',
             textAlign: 'right'
           }}>
-            <Cpu size={8} style={{ display: 'inline', marginRight: '2px' }} />
+            <Cpu size={12} style={{ display: 'inline', marginRight: '2px' }} />
             {cpuPct.toFixed(0)}%
           </span>
           <span style={{
-            fontSize: '8px',
+            fontSize: '11px',
             color: memPct > 80 ? 'var(--danger)' : 'var(--text-muted)',
             fontFamily: 'var(--font-mono, monospace)',
-            minWidth: '50px',
+            minWidth: '55px',
             textAlign: 'right'
           }}>
             {formatBytes(guest.mem)}
@@ -154,7 +154,7 @@ const GuestRow = ({ guest, actionLoading, confirmStop, onStart, onStop, onConfir
         </>
       )}
       {!isRunning && !isLoading && (
-        <span style={{ fontSize: '8px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>{guest.status}</span>
+        <span style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>{guest.status}</span>
       )}
 
       {/* Action buttons */}
@@ -293,8 +293,8 @@ export default function ProxmoxPanel({ config }) {
         title="Proxmox"
         badge={
           <span style={{
-            fontSize: '9px',
-            padding: '2px 6px',
+            fontSize: '11px',
+            padding: '2px 8px',
             background: 'rgba(34, 197, 94, 0.2)',
             color: 'var(--success)',
             borderRadius: '4px',
@@ -321,17 +321,17 @@ export default function ProxmoxPanel({ config }) {
             { id: 'stopped', label: `Stopped (${stoppedGuests.length})` }
           ].map(t => (
             <button key={t.id} onClick={() => setTab(t.id)} style={{
-              padding: '3px 8px',
+              padding: '5px 10px',
               background: tab === t.id ? 'var(--accent-primary)' : 'var(--bg-card)',
               color: tab === t.id ? '#000' : 'var(--text-muted)',
               border: 'none',
-              borderRadius: '4px',
-              fontSize: '9px',
+              borderRadius: '6px',
+              fontSize: '11px',
               fontWeight: '600',
               cursor: 'pointer'
             }}>{t.label}</button>
           ))}
-          <span style={{ marginLeft: 'auto', fontSize: '8px', color: 'var(--text-muted)' }}>
+          <span style={{ marginLeft: 'auto', fontSize: '10px', color: 'var(--text-muted)' }}>
             {qemuCount} VM · {lxcCount} CT
           </span>
         </div>
@@ -340,9 +340,9 @@ export default function ProxmoxPanel({ config }) {
         {actionError && (
           <div style={{
             display: 'flex', alignItems: 'center', gap: '6px',
-            padding: '6px 8px', marginBottom: '6px',
+            padding: '8px 10px', marginBottom: '6px',
             background: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--danger)',
-            borderRadius: '6px', fontSize: '10px', color: 'var(--danger)'
+            borderRadius: '8px', fontSize: '12px', color: 'var(--danger)'
           }}>
             <AlertTriangle size={12} style={{ flexShrink: 0 }} />
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{actionError}</span>
@@ -364,7 +364,7 @@ export default function ProxmoxPanel({ config }) {
             />
           ))}
           {filteredGuests.length === 0 && (
-            <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '20px', fontSize: '11px' }}>
+            <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '20px', fontSize: '13px' }}>
               No {tab === 'stopped' ? 'stopped' : tab === 'running' ? 'running' : ''} guests
             </div>
           )}
