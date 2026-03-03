@@ -90,14 +90,16 @@ const GuestRow = ({ guest, actionLoading, confirmStop, onStart, onStop, onConfir
   const btnStyle = {
     background: 'transparent',
     border: 'none',
-    padding: '3px',
+    padding: '6px',
     cursor: isLoading ? 'default' : 'pointer',
-    borderRadius: '4px',
+    borderRadius: '6px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     opacity: isLoading ? 0.5 : 1,
-    transition: 'background 0.15s'
+    transition: 'background 0.15s',
+    minWidth: '28px',
+    minHeight: '28px'
   };
 
   return (
@@ -157,19 +159,19 @@ const GuestRow = ({ guest, actionLoading, confirmStop, onStart, onStop, onConfir
 
       {/* Action buttons */}
       {isLoading ? (
-        <Loader2 size={12} style={{ color: 'var(--accent-primary)', animation: 'spin 1s linear infinite', flexShrink: 0 }} />
+        <Loader2 size={16} style={{ color: 'var(--accent-primary)', animation: 'spin 1s linear infinite', flexShrink: 0 }} />
       ) : isConfirming ? (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
           <button
             onClick={() => onConfirmStop(guest)}
             style={{ ...btnStyle, background: 'rgba(239, 68, 68, 0.2)' }}
             title="Confirm stop"
           >
-            <Square size={10} style={{ color: 'var(--danger)', fill: 'var(--danger)' }} />
+            <Square size={14} style={{ color: 'var(--danger)', fill: 'var(--danger)' }} />
           </button>
           <button
             onClick={onCancelStop}
-            style={{ ...btnStyle, fontSize: '9px', color: 'var(--text-muted)', padding: '2px 4px' }}
+            style={{ ...btnStyle, fontSize: '12px', color: 'var(--text-muted)' }}
             title="Cancel"
           >
             ✕
@@ -181,7 +183,7 @@ const GuestRow = ({ guest, actionLoading, confirmStop, onStart, onStop, onConfir
           style={btnStyle}
           title="Stop"
         >
-          <Square size={10} style={{ color: 'var(--danger)' }} />
+          <Square size={14} style={{ color: 'var(--danger)' }} />
         </button>
       ) : guest.status === 'stopped' ? (
         <button
@@ -189,7 +191,7 @@ const GuestRow = ({ guest, actionLoading, confirmStop, onStart, onStop, onConfir
           style={btnStyle}
           title="Start"
         >
-          <Play size={10} style={{ color: 'var(--success)', fill: 'var(--success)' }} />
+          <Play size={14} style={{ color: 'var(--success)', fill: 'var(--success)' }} />
         </button>
       ) : null}
     </div>
