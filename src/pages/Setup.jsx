@@ -327,6 +327,107 @@ function StandbyUploadGallery({ currentUrl, onSelect }) {
   );
 }
 
+function SlideshowUploadPicker({ selectedImages, onChange }) {
+  const [uploads, setUploads] = useState([]);
+
+  const loadUploads = useCallback(async () => {
+    try {
+      const res = await fetch('/api/uploads');
+      const data = await res.json();
+      setUploads(Array.isArray(data) ? data : []);
+    } catch { setUploads([]); }
+  }, []);
+
+  useEffect(() => { loadUploads(); }, [loadUploads]);
+
+  const handleUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 20 * 1024 * 1024) { alert('File too large (max 20MB)'); return; }
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      const res = await fetch('/api/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.ok && data.url) {
+        onChange([...selectedImages, data.url]);
+        loadUploads();
+      } else {
+        alert(data.error || 'Upload failed');
+      }
+    } catch (err) {
+      alert('Upload failed: ' + err.message);
+    }
+    e.target.value = '';
+  };
+
+  if (uploads.length === 0) {
+    return (
+      <div>
+        <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '600' }}>
+          Add Uploads
+        </div>
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+          <label style={{
+            width: '72px', height: '42px', borderRadius: '6px',
+            border: '2px dashed rgba(255,255,255,0.15)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '1px',
+            cursor: 'pointer', flexShrink: 0
+          }}>
+            <Upload size={14} style={{ color: 'rgba(255,255,255,0.3)' }} />
+            <span style={{ fontSize: '8px', color: 'rgba(255,255,255,0.3)' }}>Upload</span>
+            <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleUpload} />
+          </label>
+          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>No uploads yet</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '600' }}>
+        Add Uploads
+      </div>
+      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+        <label style={{
+          width: '72px', height: '42px', borderRadius: '6px',
+          border: '2px dashed rgba(255,255,255,0.15)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '1px',
+          cursor: 'pointer', flexShrink: 0
+        }}>
+          <Upload size={14} style={{ color: 'rgba(255,255,255,0.3)' }} />
+          <span style={{ fontSize: '8px', color: 'rgba(255,255,255,0.3)' }}>Upload</span>
+          <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleUpload} />
+        </label>
+        {uploads.map(file => {
+          const inList = selectedImages.includes(file.url);
+          return (
+            <button
+              key={file.name}
+              onClick={() => {
+                onChange(inList ? selectedImages.filter(u => u !== file.url) : [...selectedImages, file.url]);
+              }}
+              style={{
+                width: '72px', height: '42px', borderRadius: '6px', overflow: 'hidden', position: 'relative',
+                border: `2px solid ${inList ? 'var(--accent-primary)' : 'rgba(255,255,255,0.1)'}`,
+                cursor: 'pointer', padding: 0, transition: 'border-color 0.2s', flexShrink: 0, opacity: inList ? 1 : 0.5
+              }}
+            >
+              <img src={file.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} loading="lazy" />
+              {inList && (
+                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)' }}>
+                  <Check size={16} style={{ color: 'var(--accent-primary)' }} />
+                </div>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function Toggle({ checked, onChange, label }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }} onClick={(e) => e.stopPropagation()}>
@@ -3695,6 +3796,167 @@ export default function Setup() {
                         >
                           <Trash2 size={14} />
                         </button>
+                      )}
+                    </div>
+
+                    {/* Slideshow */}
+                    <div style={{ marginTop: '16px', padding: '14px', background: 'var(--bg-card)', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: settings.standbySlideshowEnabled ? '12px' : 0 }}>
+                        <Toggle
+                          checked={settings.standbySlideshowEnabled ?? false}
+                          onChange={(val) => updateSettings({ standbySlideshowEnabled: val })}
+                        />
+                        <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: '500' }}>Slideshow</span>
+                        {settings.standbySlideshowEnabled && (
+                          <span style={{ marginLeft: 'auto', fontSize: '11px', color: 'var(--text-muted)' }}>
+                            {(settings.standbySlideshowImages || []).length} image{(settings.standbySlideshowImages || []).length !== 1 ? 's' : ''}
+                          </span>
+                        )}
+                      </div>
+
+                      {settings.standbySlideshowEnabled && (
+                        <>
+                          {/* Interval selector */}
+                          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '12px' }}>
+                            {[
+                              { label: '15s', value: 15 },
+                              { label: '30s', value: 30 },
+                              { label: '1 min', value: 60 },
+                              { label: '5 min', value: 300 },
+                              { label: '10 min', value: 600 }
+                            ].map(opt => (
+                              <button
+                                key={opt.value}
+                                onClick={() => updateSettings({ standbySlideshowInterval: opt.value })}
+                                style={{
+                                  padding: '4px 10px', borderRadius: '6px',
+                                  border: `1px solid ${(settings.standbySlideshowInterval || 30) === opt.value ? 'var(--accent-primary)' : 'var(--border-color)'}`,
+                                  background: (settings.standbySlideshowInterval || 30) === opt.value ? 'var(--accent-glow)' : 'var(--bg-secondary)',
+                                  color: (settings.standbySlideshowInterval || 30) === opt.value ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                                  cursor: 'pointer', fontSize: '11px', fontWeight: '500'
+                                }}
+                              >
+                                {opt.label}
+                              </button>
+                            ))}
+                          </div>
+
+                          {/* Add from wallpapers */}
+                          <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '600' }}>
+                            Add Wallpapers
+                          </div>
+                          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '10px' }}>
+                            {[
+                              { name: 'Mountain', url: 'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=3440&q=80' },
+                              { name: 'Aurora', url: 'https://images.unsplash.com/photo-1531366936337-7c912a4589a7?w=3440&q=80' },
+                              { name: 'Night Sky', url: 'https://images.unsplash.com/photo-1507400492013-162706c8c05e?w=3440&q=80' },
+                              { name: 'Dark Ocean', url: 'https://images.unsplash.com/photo-1505142468610-359e7d316be0?w=3440&q=80' },
+                              { name: 'Forest', url: 'https://images.unsplash.com/photo-1448375240586-882707db888b?w=3440&q=80' }
+                            ].map(wp => {
+                              const inList = (settings.standbySlideshowImages || []).includes(wp.url);
+                              return (
+                                <button
+                                  key={wp.name}
+                                  onClick={() => {
+                                    const imgs = settings.standbySlideshowImages || [];
+                                    updateSettings({ standbySlideshowImages: inList ? imgs.filter(u => u !== wp.url) : [...imgs, wp.url] });
+                                  }}
+                                  style={{
+                                    width: '72px', height: '42px', borderRadius: '6px', overflow: 'hidden', position: 'relative',
+                                    border: `2px solid ${inList ? 'var(--accent-primary)' : 'rgba(255,255,255,0.1)'}`,
+                                    cursor: 'pointer', padding: 0, transition: 'border-color 0.2s', flexShrink: 0, opacity: inList ? 1 : 0.5
+                                  }}
+                                >
+                                  <img src={wp.url} alt={wp.name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} loading="lazy" />
+                                  {inList && (
+                                    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)' }}>
+                                      <Check size={16} style={{ color: 'var(--accent-primary)' }} />
+                                    </div>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          {/* Add from uploads */}
+                          <SlideshowUploadPicker
+                            selectedImages={settings.standbySlideshowImages || []}
+                            onChange={(imgs) => updateSettings({ standbySlideshowImages: imgs })}
+                          />
+
+                          {/* Add URL */}
+                          <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '10px' }}>
+                            <input
+                              type="text"
+                              placeholder="Add image URL..."
+                              id="slideshow-url-input"
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && e.target.value.trim()) {
+                                  const url = e.target.value.trim();
+                                  const imgs = settings.standbySlideshowImages || [];
+                                  if (!imgs.includes(url)) updateSettings({ standbySlideshowImages: [...imgs, url] });
+                                  e.target.value = '';
+                                }
+                              }}
+                              style={{
+                                flex: 1, padding: '8px 12px',
+                                background: 'var(--bg-secondary)', border: '1px solid var(--border-color)',
+                                borderRadius: '6px', color: 'var(--text-primary)', fontSize: '12px', outline: 'none'
+                              }}
+                            />
+                            <button
+                              onClick={() => {
+                                const input = document.getElementById('slideshow-url-input');
+                                if (input?.value.trim()) {
+                                  const url = input.value.trim();
+                                  const imgs = settings.standbySlideshowImages || [];
+                                  if (!imgs.includes(url)) updateSettings({ standbySlideshowImages: [...imgs, url] });
+                                  input.value = '';
+                                }
+                              }}
+                              style={{
+                                padding: '8px 12px', borderRadius: '6px',
+                                background: 'var(--accent-glow)', border: '1px solid var(--accent-primary)',
+                                color: 'var(--accent-primary)', fontSize: '12px', cursor: 'pointer'
+                              }}
+                            >
+                              <Plus size={14} />
+                            </button>
+                          </div>
+
+                          {/* Current slideshow images */}
+                          {(settings.standbySlideshowImages || []).length > 0 && (
+                            <div style={{ marginTop: '10px' }}>
+                              <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '600' }}>
+                                Slideshow Queue ({(settings.standbySlideshowImages || []).length})
+                              </div>
+                              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                {(settings.standbySlideshowImages || []).map((url, i) => (
+                                  <div key={i} style={{ position: 'relative', flexShrink: 0 }}>
+                                    <div style={{
+                                      width: '72px', height: '42px', borderRadius: '6px', overflow: 'hidden',
+                                      border: '2px solid rgba(255,255,255,0.15)'
+                                    }}>
+                                      <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} loading="lazy" />
+                                    </div>
+                                    <button
+                                      onClick={() => updateSettings({ standbySlideshowImages: (settings.standbySlideshowImages || []).filter((_, idx) => idx !== i) })}
+                                      style={{
+                                        position: 'absolute', top: '-5px', right: '-5px',
+                                        width: '16px', height: '16px', borderRadius: '50%',
+                                        background: '#ef4444', border: 'none', color: '#fff',
+                                        fontSize: '10px', cursor: 'pointer', padding: 0,
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                      }}
+                                    >
+                                      <X size={9} />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>

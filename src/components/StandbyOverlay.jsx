@@ -97,6 +97,9 @@ export default function StandbyOverlay() {
   const [quickActionStates, setQuickActionStates] = useState({});
   const [calendarEvents, setCalendarEvents] = useState([]);
   const [bgLoaded, setBgLoaded] = useState(false);
+  const [slideIndex, setSlideIndex] = useState(0);
+  const [slideFade, setSlideFade] = useState(1);
+  const [slideUrls, setSlideUrls] = useState(['', '']);
   const [viewportHeight, setViewportHeight] = useState(typeof window !== 'undefined' ? window.innerHeight : 720);
   const idleTimerRef = useRef(null);
   const isStandbyRef = useRef(false);
@@ -107,6 +110,9 @@ export default function StandbyOverlay() {
     standbyIdleMinutes = 300,
     standbyBackgroundUrl = '',
     standbyBackgroundPreset = 'none',
+    standbySlideshowEnabled = false,
+    standbySlideshowInterval = 30,
+    standbySlideshowImages = [],
     standbyOverlays = {},
     standbyOverlayPosition = 'bottom-left',
     standbyDimOpacity = 0.4,
@@ -319,8 +325,55 @@ export default function StandbyOverlay() {
     return () => clearInterval(interval);
   }, [isStandby, standbyOverlays.calendar, integrations?.calendars]);
 
+  // ── Slideshow cycling ──
+  const slideshowActive = standbySlideshowEnabled && standbySlideshowImages.length > 1 && isStandby;
+
+  useEffect(() => {
+    if (!slideshowActive) {
+      setSlideIndex(0);
+      setSlideFade(1);
+      if (standbySlideshowImages.length === 1) {
+        setSlideUrls([standbySlideshowImages[0], '']);
+      }
+      return;
+    }
+
+    // Initialise first image
+    setSlideUrls([standbySlideshowImages[0], '']);
+    setSlideFade(1);
+    let currentIdx = 0;
+
+    const cycle = () => {
+      const nextIdx = (currentIdx + 1) % standbySlideshowImages.length;
+      const nextUrl = standbySlideshowImages[nextIdx];
+
+      // Preload next image
+      const img = new Image();
+      img.onload = () => {
+        // Set next image in the back layer, then crossfade
+        setSlideUrls(prev => [prev[0], nextUrl]);
+        // Fade out front to reveal back
+        setSlideFade(0);
+        setTimeout(() => {
+          // Swap: move back to front
+          setSlideUrls([nextUrl, '']);
+          setSlideFade(1);
+        }, 1500); // match CSS transition
+      };
+      img.onerror = () => {
+        // Skip broken image
+      };
+      img.src = nextUrl;
+      currentIdx = nextIdx;
+    };
+
+    const interval = setInterval(cycle, (standbySlideshowInterval || 30) * 1000);
+    return () => clearInterval(interval);
+  }, [slideshowActive, standbySlideshowImages, standbySlideshowInterval, isStandby]);
+
   // ── Preload background image (with race condition guard) ──
   useEffect(() => {
+    if (slideshowActive) { setBgLoaded(true); return; }
     if (!standbyBackgroundUrl) { setBgLoaded(false); return; }
     let cancelled = false;
     const img = new Image();
@@ -329,7 +382,7 @@ export default function StandbyOverlay() {
     img.src = standbyBackgroundUrl;
     setBgLoaded(false);
     return () => { cancelled = true; };
-  }, [standbyBackgroundUrl]);
+  }, [standbyBackgroundUrl, slideshowActive]);
 
   // ── Don't render if not enabled or not in standby ──
   if (!standbyEnabled || !isStandby) return null;
@@ -550,16 +603,29 @@ export default function StandbyOverlay() {
   const visibleCards = cards.slice(0, maxCards);
 
   // ── Background style ──
-  const backgroundStyle = (standbyBackgroundUrl && bgLoaded)
-    ? { backgroundImage: `url(${standbyBackgroundUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }
-    : standbyBackgroundPreset !== 'none' && GRADIENT_PRESETS[standbyBackgroundPreset]
-      ? { background: GRADIENT_PRESETS[standbyBackgroundPreset] }
-      : { background: '#000' };
+  const useSlideshowBg = slideshowActive || (standbySlideshowEnabled && standbySlideshowImages.length === 1);
+  const backgroundStyle = useSlideshowBg
+    ? { background: '#000' }
+    : (standbyBackgroundUrl && bgLoaded)
+      ? { backgroundImage: `url(${standbyBackgroundUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+      : standbyBackgroundPreset !== 'none' && GRADIENT_PRESETS[standbyBackgroundPreset]
+        ? { background: GRADIENT_PRESETS[standbyBackgroundPreset] }
+        : { background: '#000' };
 
   const posStyle = POSITION_STYLES[standbyOverlayPosition] || POSITION_STYLES['bottom-left'];
 
+  const slideBgStyle = { position: 'absolute', inset: 0, backgroundSize: 'cover', backgroundPosition: 'center', transition: 'opacity 1.5s ease-in-out' };
+
   return (
     <div className="standby-overlay active" style={backgroundStyle}>
+      {/* Slideshow layers */}
+      {useSlideshowBg && slideUrls[1] && (
+        <div style={{ ...slideBgStyle, backgroundImage: `url(${slideUrls[1]})`, opacity: 1, zIndex: 0 }} />
+      )}
+      {useSlideshowBg && slideUrls[0] && (
+        <div style={{ ...slideBgStyle, backgroundImage: `url(${slideUrls[0]})`, opacity: slideFade, zIndex: 1 }} />
+      )}
+
       {/* Dim layer */}
       <div className="standby-dim" style={{ opacity: standbyDimOpacity }} />
 
