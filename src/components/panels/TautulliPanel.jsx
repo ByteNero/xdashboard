@@ -14,9 +14,9 @@ const getDeviceIcon = (platform, product) => {
 };
 
 const ITEMS_PER_PAGE = {
-  activity: 6, // Compact but readable
-  recent: 12, // 3 rows x 4 columns
-  history: 8
+  activity: 10,
+  recent: 16, // 4 rows x 4 columns
+  history: 12
 };
 
 export default function TautulliPanel({ config }) {

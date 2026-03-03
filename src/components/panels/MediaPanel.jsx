@@ -36,6 +36,7 @@ export default function MediaPanel({ config }) {
     const loadMediaPlayers = () => {
       let players = Object.entries(homeAssistant.entities)
         .filter(([id]) => id.startsWith('media_player.'))
+        .filter(([id]) => !id.startsWith('media_player.plex_')) // Exclude Plex cast sessions
         .map(([id, state]) => ({
           id,
           name: state.attributes?.friendly_name || id.split('.')[1].replace(/_/g, ' '),

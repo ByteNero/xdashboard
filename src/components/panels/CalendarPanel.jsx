@@ -3,7 +3,7 @@ import { Calendar, Clock, MapPin, Loader2 } from 'lucide-react';
 import { useDashboardStore } from '../../store/dashboardStore';
 import PanelHeader from './PanelHeader';
 
-const ITEMS_PER_PAGE = 5;
+const ITEMS_PER_PAGE = 8;
 
 // Parse iCal format
 function parseICal(icalData) {
