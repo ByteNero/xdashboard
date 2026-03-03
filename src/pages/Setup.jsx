@@ -1276,6 +1276,7 @@ function SubscriptionsList({ subscriptions, onChange }) {
             </select>
             <select value={sub.billingCycle} onChange={(e) => update(sub.id, 'billingCycle', e.target.value)} style={{ ...selectStyle, width: '100px' }}>
               <option value="monthly">Monthly</option>
+              <option value="quarterly">Quarterly</option>
               <option value="yearly">Yearly</option>
             </select>
             <select value={sub.category || ''} onChange={(e) => update(sub.id, 'category', e.target.value)} style={{ ...selectStyle, width: '110px' }}>

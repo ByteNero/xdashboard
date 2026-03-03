@@ -419,7 +419,12 @@ export default function StandbyOverlay() {
         let next;
         if (s.billingCycle === 'yearly') {
           next = new Date(today.getFullYear(), today.getMonth(), day);
-          if (next < today) next = new Date(today.getFullYear(), today.getMonth() + 1, day);
+          if (next < today) next = new Date(today.getFullYear() + 1, today.getMonth(), day);
+        } else if (s.billingCycle === 'quarterly') {
+          next = new Date(today.getFullYear(), today.getMonth(), day);
+          if (next < today) next.setMonth(next.getMonth() + 1);
+          const monthsAhead = (3 - (next.getMonth() % 3)) % 3;
+          next.setMonth(next.getMonth() + monthsAhead);
         } else {
           next = new Date(today.getFullYear(), today.getMonth(), day);
           if (next < today) next = new Date(today.getFullYear(), today.getMonth() + 1, day);

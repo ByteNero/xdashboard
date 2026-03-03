@@ -16,6 +16,13 @@ function getNextBillingDate(billingDay, billingCycle) {
   if (billingCycle === 'yearly') {
     next = new Date(now.getFullYear(), now.getMonth(), day);
     if (next <= now) next = new Date(now.getFullYear() + 1, now.getMonth(), day);
+  } else if (billingCycle === 'quarterly') {
+    next = new Date(now.getFullYear(), now.getMonth(), day);
+    if (next <= now) next.setMonth(next.getMonth() + 1);
+    // Align to next quarter boundary (every 3 months from Jan)
+    const monthsAhead = (3 - (next.getMonth() % 3)) % 3;
+    if (day <= today && monthsAhead === 0) next.setMonth(next.getMonth() + 3);
+    else next.setMonth(next.getMonth() + monthsAhead);
   } else {
     next = new Date(now.getFullYear(), now.getMonth(), day);
     if (day <= today) next.setMonth(next.getMonth() + 1);
@@ -41,7 +48,7 @@ export default function SubscriptionsPanel({ config }) {
   const enriched = subs.map(s => ({
     ...s,
     nextDate: getNextBillingDate(s.billingDay || 1, s.billingCycle || 'monthly'),
-    monthlyAmount: s.billingCycle === 'yearly' ? parseFloat(s.amount) / 12 : parseFloat(s.amount)
+    monthlyAmount: s.billingCycle === 'yearly' ? parseFloat(s.amount) / 12 : s.billingCycle === 'quarterly' ? parseFloat(s.amount) / 3 : parseFloat(s.amount)
   })).sort((a, b) => a.nextDate - b.nextDate);
 
   const monthlyTotal = enriched.reduce((sum, s) => sum + (s.monthlyAmount || 0), 0);
@@ -107,7 +114,7 @@ export default function SubscriptionsPanel({ config }) {
                   <span style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: '600', fontFamily: 'var(--font-mono, monospace)', flexShrink: 0 }}>
                     {csym}{parseFloat(sub.amount).toFixed(2)}
                     <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: '400' }}>
-                      /{sub.billingCycle === 'yearly' ? 'yr' : 'mo'}
+                      /{sub.billingCycle === 'yearly' ? 'yr' : sub.billingCycle === 'quarterly' ? 'qtr' : 'mo'}
                     </span>
                   </span>
                   <span style={{ fontSize: '11px', color: 'var(--text-muted)', flexShrink: 0, fontFamily: 'var(--font-mono, monospace)' }}>
