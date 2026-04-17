@@ -332,7 +332,11 @@ const defaultIntegrations = {
   busni: {
     enabled: false,
     url: '', // e.g. http://translink.192.168.1.114.sslip.io
-    apiKey: ''
+    apiKey: '',
+    stopIds: '', // Comma-separated stop IDs. Empty = use service defaults (Saintfield + Queen's Park)
+    lineFilter: '', // Comma-separated route numbers to keep. Empty = no line filter
+    destinationFilter: '', // Substring match against destination (case-insensitive). Empty = no filter
+    maxPerStop: 2 // How many departures to render per stop (after filtering)
   },
   subscriptions: [],
   favoriteSeries: []
@@ -360,7 +364,7 @@ export const useDashboardStore = create(
         standbySlideshowEnabled: false,
         standbySlideshowInterval: 30,
         standbySlideshowImages: [],
-        standbyOverlays: { clock: true, date: true, countdowns: false, tautulliActivity: false, weather: false, lights: false, services: false, extraClocks: false, tvCalendar: false, calendar: false, subscriptions: false, quickActions: false },
+        standbyOverlays: { clock: true, date: true, countdowns: false, tautulliActivity: false, weather: false, lights: false, services: false, extraClocks: false, tvCalendar: false, calendar: false, subscriptions: false, quickActions: false, busni: false },
         standbyQuickActions: [], // Max 3 HA entity_ids for standby toggle buttons
         standbyOverlayPosition: 'bottom-left',
         standbyDimOpacity: 0.4,

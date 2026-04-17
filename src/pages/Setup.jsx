@@ -3350,7 +3350,7 @@ export default function Setup() {
               status={connectionStatus.busni} onConnect={connectBusNI} onDisconnect={disconnectBusNI} language={language}>
 
               <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '12px', marginBottom: '16px', fontSize: '13px', color: 'var(--text-secondary)' }}>
-                Northern Ireland bus departures + disruptions via the Translink opendata wrapper. Watched stops and routes are configured in <code>src/services/busni.js</code>. Transport Information supplied by Translink Opendata API.
+                Northern Ireland bus departures + disruptions via the Translink opendata wrapper. Transport Information supplied by Translink Opendata API.
               </div>
 
               <FormInput label="Wrapper URL" value={integrations.busni?.url || ''}
@@ -3362,6 +3362,30 @@ export default function Setup() {
                 onChange={(apiKey) => updateIntegration('busni', { ...integrations.busni, apiKey })}
                 placeholder="••••••••••••" secret
                 helpText="Sent as X-API-Key header on every request (from the wrapper's API_KEYS env var)" />
+
+              <FormInput label="Stop IDs" value={integrations.busni?.stopIds || ''}
+                onChange={(stopIds) => updateIntegration('busni', { ...integrations.busni, stopIds })}
+                placeholder="10010881, 10010863"
+                helpText="Comma-separated Translink stop IDs. Leave blank to use Saintfield + Queen's Park defaults." />
+
+              <FormInput label="Destination filter" value={integrations.busni?.destinationFilter || ''}
+                onChange={(destinationFilter) => updateIntegration('busni', { ...integrations.busni, destinationFilter })}
+                placeholder="Belfast"
+                helpText="Only show buses whose destination contains this text (case-insensitive). Blank = show all." />
+
+              <FormInput label="Route filter" value={integrations.busni?.lineFilter || ''}
+                onChange={(lineFilter) => updateIntegration('busni', { ...integrations.busni, lineFilter })}
+                placeholder="516, 515"
+                helpText="Comma-separated route numbers to keep. Blank = show all routes." />
+
+              <FormInput label="Buses per stop" value={String(integrations.busni?.maxPerStop ?? 2)}
+                onChange={(v) => updateIntegration('busni', { ...integrations.busni, maxPerStop: parseInt(v, 10) || 2 })}
+                placeholder="2"
+                helpText="How many departures to show per stop after filtering (1-10)." />
+
+              <div style={{ marginTop: '12px', fontSize: '11px', color: 'var(--text-muted)' }}>
+                After changing filters, click Disconnect then Connect to apply them.
+              </div>
             </IntegrationCard>
 
           </div>
@@ -4005,7 +4029,8 @@ export default function Setup() {
                         { key: 'tvCalendar', label: 'TV Calendar' },
                         { key: 'calendar', label: 'Calendar' },
                         { key: 'subscriptions', label: 'Subscriptions' },
-                        { key: 'quickActions', label: 'Quick Actions' }
+                        { key: 'quickActions', label: 'Quick Actions' },
+                        { key: 'busni', label: 'Next Bus (BUS NI)' }
                       ].map(ov => (
                         <div key={ov.key} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 12px', background: 'var(--bg-card)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                           <Toggle

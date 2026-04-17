@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Users, Play, AlertTriangle, Lightbulb, Globe, Tv, Power, Calendar, CreditCard } from 'lucide-react';
+import { Users, Play, AlertTriangle, Lightbulb, Globe, Tv, Power, Calendar, CreditCard, Bus } from 'lucide-react';
 import { useDashboardStore } from '../store/dashboardStore';
-import { tautulli, homeAssistant, uptimeKuma, weather, sonarr } from '../services';
+import { tautulli, homeAssistant, uptimeKuma, weather, sonarr, busni } from '../services';
 import { WeatherIcon } from '../utils/weatherIcons.jsx';
 
 // ── Constants ──
@@ -94,6 +94,7 @@ export default function StandbyOverlay() {
   const [lightsOn, setLightsOn] = useState(0);
   const [lightsTotal, setLightsTotal] = useState(0);
   const [sonarrData, setSonarrData] = useState(null);
+  const [busniData, setBusniData] = useState(null);
   const [quickActionStates, setQuickActionStates] = useState({});
   const [calendarEvents, setCalendarEvents] = useState([]);
   const [bgLoaded, setBgLoaded] = useState(false);
@@ -289,6 +290,14 @@ export default function StandbyOverlay() {
     const unsub = sonarr.subscribe(data => setSonarrData(data));
     return () => unsub();
   }, [isStandby, standbyOverlays.tvCalendar]);
+
+  // ── BUS NI subscription ──
+  useEffect(() => {
+    if (!isStandby || !standbyOverlays.busni) return;
+    if (!busni.isConnected()) { setBusniData(null); return; }
+    const unsub = busni.subscribe(data => setBusniData(data));
+    return () => unsub();
+  }, [isStandby, standbyOverlays.busni]);
 
   // ── iCal/Google Calendar fetch ──
   useEffect(() => {
@@ -598,6 +607,58 @@ export default function StandbyOverlay() {
         <div key="tv-idle" className="standby-card">
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', opacity: 0.4 }}>
             <Tv size={12} /><span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>No upcoming episodes</span>
+          </div>
+        </div>
+      );
+    }
+  }
+
+  if (standbyOverlays.busni && busniData) {
+    const stopsList = (busniData.watchedStops || []).map(id => ({
+      id,
+      label: busniData.stopLabels?.[id] || id,
+      deps: busniData.stops?.[id]?.data || []
+    }));
+    const anyDeps = stopsList.some(s => s.deps.length > 0);
+    if (anyDeps) {
+      cards.push(
+        <div key="busni" className="standby-card">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+            <Bus size={12} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
+            <span style={{ fontSize: '11px', color: 'var(--accent-primary)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px' }}>Next Bus</span>
+            {busniData.destinationFilter && (
+              <span style={{ marginLeft: 'auto', fontSize: '10px', color: 'rgba(255,255,255,0.3)', textTransform: 'capitalize' }}>
+                → {busniData.destinationFilter}
+              </span>
+            )}
+          </div>
+          {stopsList.map(stop => (
+            <div key={stop.id} style={{ marginBottom: '4px' }}>
+              {stopsList.length > 1 && (
+                <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', marginBottom: '2px' }}>{stop.label}</div>
+              )}
+              {stop.deps.length === 0 ? (
+                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', padding: '2px 0' }}>No buses</div>
+              ) : stop.deps.map((d, i) => {
+                const mins = d.minutes_until;
+                const minsLabel = d.cancelled ? 'CXL' : (mins == null ? '—' : mins <= 0 ? 'Due' : `${mins}m`);
+                return (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '2px 0', minWidth: 0, opacity: d.cancelled ? 0.5 : 1, textDecoration: d.cancelled ? 'line-through' : 'none' }}>
+                    <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--accent-primary)', minWidth: '28px' }}>{d.route || d.line || '—'}</span>
+                    <span className="standby-truncate" style={{ flex: 1, fontSize: '11px', color: 'rgba(255,255,255,0.7)' }}>{d.destination || ''}</span>
+                    <span style={{ fontSize: '11px', fontWeight: '600', color: d.cancelled ? '#ef4444' : 'rgba(255,255,255,0.85)', fontFamily: 'var(--font-mono, monospace)', flexShrink: 0 }}>{minsLabel}</span>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      );
+    } else if (busni.isConnected()) {
+      cards.push(
+        <div key="busni-idle" className="standby-card">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', opacity: 0.4 }}>
+            <Bus size={12} /><span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>No upcoming buses</span>
           </div>
         </div>
       );
