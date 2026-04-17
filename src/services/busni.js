@@ -7,7 +7,7 @@ export const STOP_LABELS = {
   '10010863': "Queen's Park"
 };
 
-const UPSTREAM_LIMIT = 10;
+const UPSTREAM_LIMIT = 15;
 const DEFAULT_POLL_MINUTES = 5;
 const MIN_POLL_MINUTES = 1;
 const MAX_POLL_MINUTES = 60;
