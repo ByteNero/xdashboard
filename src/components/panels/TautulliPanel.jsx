@@ -300,6 +300,7 @@ export default function TautulliPanel({ config }) {
         totalPages={totalPages}
         onPrev={handlePrev}
         onNext={handleNext}
+        onRefresh={() => tautulli.fetchAll()}
         badge={streamCount > 0 && (
           <span style={{
             background: 'var(--success)',
