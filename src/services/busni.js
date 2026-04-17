@@ -127,7 +127,10 @@ class BusNIService {
     params.set('postcode', postcode);
     const url = `${this.baseUrl}/stops/by-postcode?${params.toString()}`;
     const res = await this._fetch(url);
-    const raw = Array.isArray(res?.data) ? res.data : [];
+    // Wrapper shape: { data: { postcode, resolved, stops: [...] } }
+    const raw = Array.isArray(res?.data?.stops)
+      ? res.data.stops
+      : Array.isArray(res?.data) ? res.data : [];
     return raw
       .map(s => ({ id: String(s.id || s.stop_id || ''), name: s.name || s.stop_name || '' }))
       .filter(s => s.id);
