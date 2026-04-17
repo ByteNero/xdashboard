@@ -145,9 +145,19 @@ class BusNIService {
     }
   }
 
-  async fetchTimetable(stopId) {
+  _tomorrowDateString() {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  async fetchTimetable(stopId, date) {
     const params = new URLSearchParams();
     params.set('mode', 'bus');
+    if (date) params.set('date', date);
     if (this.lineFilter.length) params.set('lines', this.lineFilter.join(','));
     if (this.destinationFilter) params.set('destination', this.destinationFilter);
     const url = `${this.baseUrl}/timetable/${encodeURIComponent(stopId)}?${params.toString()}`;
@@ -162,12 +172,23 @@ class BusNIService {
 
   async fetchTimetables(force = false) {
     const now = Date.now();
+    const tomorrowDate = this._tomorrowDateString();
+
     const entries = await Promise.all(this.stopIds.map(async id => {
-      const existing = this.timetableByStop[id];
-      const fresh = existing && !existing.error && (now - existing.fetchedAt) < TIMETABLE_TTL_MS;
-      if (!force && fresh) return [id, existing];
-      const next = await this.fetchTimetable(id);
-      return [id, next];
+      const existing = this.timetableByStop[id] || {};
+      const todayFresh = existing.today && !existing.today.error
+        && (now - existing.today.fetchedAt) < TIMETABLE_TTL_MS;
+      const tomorrowFresh = existing.tomorrow
+        && existing.tomorrow.date === tomorrowDate
+        && !existing.tomorrow.error
+        && (now - existing.tomorrow.fetchedAt) < TIMETABLE_TTL_MS;
+
+      const [today, tomorrow] = await Promise.all([
+        !force && todayFresh ? existing.today : this.fetchTimetable(id),
+        !force && tomorrowFresh ? existing.tomorrow : this.fetchTimetable(id, tomorrowDate).then(r => ({ ...r, date: tomorrowDate }))
+      ]);
+
+      return [id, { today, tomorrow }];
     }));
     this.timetableByStop = Object.fromEntries(entries);
   }
@@ -191,34 +212,53 @@ class BusNIService {
   _upcomingForStop(stopId) {
     const entry = this.timetableByStop[stopId];
     if (!entry) return { data: [], cache: null, error: 'no data' };
-    if (entry.error && !entry.data?.length) return { data: [], cache: entry.cache, error: entry.error };
+
+    const today = entry.today || { data: [], cache: null, error: null };
+    const tomorrow = entry.tomorrow || { data: [], cache: null, error: null };
+
+    if (today.error && tomorrow.error && !today.data?.length && !tomorrow.data?.length) {
+      return { data: [], cache: today.cache || tomorrow.cache, error: today.error || tomorrow.error };
+    }
 
     const now = Date.now();
-    // Ceiling covers the panel plus the hardcoded 2 for the standby overlay.
     const ceiling = Math.max(this.panelLimit, 2);
-    // Include buses whose scheduled time is in the last 60s (the "Due" state) so
-    // the panel doesn't go empty the moment a bus departs.
+    // Keep buses whose scheduled time is in the last 60s too (the "Due" state)
     const cutoff = now - 60 * 1000;
 
-    const enriched = (entry.data || [])
+    const enrich = (source) => (d) => {
+      const t = Date.parse(d.scheduled_at);
+      const mins = Math.max(0, Math.round((t - now) / 60000));
+      return {
+        ...d,
+        minutes_until: mins,
+        is_realtime_tracked: false,
+        cancelled: d.cancelled || false,
+        stale: d.stale || source.cache?.status === 'STALE'
+      };
+    };
+
+    const todaysUpcoming = (today.data || [])
       .filter(d => {
         const t = Date.parse(d.scheduled_at);
         return !isNaN(t) && t >= cutoff;
       })
-      .map(d => {
-        const t = Date.parse(d.scheduled_at);
-        const mins = Math.max(0, Math.round((t - now) / 60000));
-        return {
-          ...d,
-          minutes_until: mins,
-          is_realtime_tracked: false,
-          cancelled: d.cancelled || false,
-          stale: d.stale || entry.cache?.status === 'STALE'
-        };
-      })
-      .slice(0, ceiling);
+      .map(enrich(today));
 
-    return { data: enriched, cache: entry.cache, error: null };
+    const needed = ceiling - todaysUpcoming.length;
+    const tomorrowsFill = needed > 0
+      ? (tomorrow.data || [])
+          .filter(d => !isNaN(Date.parse(d.scheduled_at)))
+          .map(enrich(tomorrow))
+          .slice(0, needed)
+      : [];
+
+    const merged = [...todaysUpcoming, ...tomorrowsFill].slice(0, ceiling);
+
+    return {
+      data: merged,
+      cache: today.cache || tomorrow.cache,
+      error: null
+    };
   }
 
   _emit() {

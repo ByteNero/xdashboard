@@ -22,7 +22,13 @@ function formatMins(mins) {
 function formatTime(iso) {
   if (!iso) return '';
   try {
-    return new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    const d = new Date(iso);
+    const now = new Date();
+    const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    if (d.toDateString() === now.toDateString()) return time;
+    // Different day — prefix with short weekday so tomorrow's buses are visually distinct
+    const weekday = d.toLocaleDateString(undefined, { weekday: 'short' });
+    return `${weekday} ${time}`;
   } catch {
     return '';
   }
