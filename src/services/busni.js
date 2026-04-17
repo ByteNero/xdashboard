@@ -26,7 +26,6 @@ class BusNIService {
     this.lineFilter = [];
     this.destinationFilter = '';
     this.panelLimit = 5;
-    this.standbyLimit = 2;
     this.pollIntervalMs = DEFAULT_POLL_MINUTES * 60 * 1000;
     this.postcode = '';
     this.connected = false;
@@ -59,11 +58,6 @@ class BusNIService {
     this.panelLimit = Number.isFinite(parsedPanel) && parsedPanel > 0
       ? Math.min(parsedPanel, UPSTREAM_LIMIT)
       : 5;
-
-    const parsedStandby = parseInt(config.standbyLimit, 10);
-    this.standbyLimit = Number.isFinite(parsedStandby) && parsedStandby > 0
-      ? Math.min(parsedStandby, UPSTREAM_LIMIT)
-      : 2;
 
     const parsedPoll = parseInt(config.pollIntervalMinutes, 10);
     const pollMins = Number.isFinite(parsedPoll) && parsedPoll > 0
@@ -197,7 +191,8 @@ class BusNIService {
     if (entry.error && !entry.data?.length) return { data: [], cache: entry.cache, error: entry.error };
 
     const now = Date.now();
-    const ceiling = Math.max(this.panelLimit, this.standbyLimit);
+    // Ceiling covers the panel plus the hardcoded 2 for the standby overlay.
+    const ceiling = Math.max(this.panelLimit, 2);
     // Include buses whose scheduled time is in the last 60s (the "Due" state) so
     // the panel doesn't go empty the moment a bus departs.
     const cutoff = now - 60 * 1000;
@@ -235,7 +230,6 @@ class BusNIService {
       watchedLines: this.lineFilter.length ? [...this.lineFilter] : [...DEFAULT_LINES],
       destinationFilter: this.destinationFilter,
       panelLimit: this.panelLimit,
-      standbyLimit: this.standbyLimit,
       postcode: this.postcode,
       quotaStatus: this.healthData?.quota_status || 'unknown',
       quotaUsed: this.healthData?.quota_used,

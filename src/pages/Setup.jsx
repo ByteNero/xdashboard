@@ -3383,17 +3383,10 @@ export default function Setup() {
                 placeholder="215, 515"
                 helpText="Comma-separated route numbers to keep. Blank = show all routes." />
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <FormInput label="Buses on panel" value={String(integrations.busni?.panelLimit ?? 5)}
-                  onChange={(v) => updateIntegration('busni', { ...integrations.busni, panelLimit: parseInt(v, 10) || 5 })}
-                  placeholder="5"
-                  helpText="Per stop, after filtering (1-10)." />
-
-                <FormInput label="Buses on lock screen" value={String(integrations.busni?.standbyLimit ?? 2)}
-                  onChange={(v) => updateIntegration('busni', { ...integrations.busni, standbyLimit: parseInt(v, 10) || 2 })}
-                  placeholder="2"
-                  helpText="Per stop, on standby (1-10)." />
-              </div>
+              <FormInput label="Buses per stop (panel)" value={String(integrations.busni?.panelLimit ?? 5)}
+                onChange={(v) => updateIntegration('busni', { ...integrations.busni, panelLimit: parseInt(v, 10) || 5 })}
+                placeholder="5"
+                helpText="How many departures to show per stop on the main panel (1-10). The lock screen always shows the next 2." />
 
               <FormInput label="Poll interval (minutes)" value={String(integrations.busni?.pollIntervalMinutes ?? 5)}
                 onChange={(v) => updateIntegration('busni', { ...integrations.busni, pollIntervalMinutes: parseInt(v, 10) || 5 })}

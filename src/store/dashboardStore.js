@@ -337,9 +337,8 @@ const defaultIntegrations = {
     stopIds: '', // Comma-separated stop IDs. Empty = use service defaults (Saintfield + Queen's Park)
     lineFilter: '', // Comma-separated route numbers to keep. Empty = no line filter
     destinationFilter: '', // Substring match against destination (case-insensitive). Empty = no filter
-    panelLimit: 5, // Departures shown per stop on the main panel (after filtering)
-    standbyLimit: 2, // Departures shown per stop on the lock/standby screen
-    pollIntervalMinutes: 5 // How often the dashboard polls the wrapper. Lower = fresher, higher = less quota.
+    panelLimit: 5, // Departures shown per stop on the main panel. Standby is hardcoded to 2.
+    pollIntervalMinutes: 5 // How often the dashboard polls the wrapper for alerts + health. Timetable is fetched ~once/day.
   },
   subscriptions: [],
   favoriteSeries: []
