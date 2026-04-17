@@ -614,10 +614,11 @@ export default function StandbyOverlay() {
   }
 
   if (standbyOverlays.busni && busniData) {
+    const standbyLimit = busniData.standbyLimit || 2;
     const stopsList = (busniData.watchedStops || []).map(id => ({
       id,
       label: busniData.stopLabels?.[id] || id,
-      deps: busniData.stops?.[id]?.data || []
+      deps: (busniData.stops?.[id]?.data || []).slice(0, standbyLimit)
     }));
     const anyDeps = stopsList.some(s => s.deps.length > 0);
     if (anyDeps) {

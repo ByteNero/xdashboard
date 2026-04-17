@@ -333,10 +333,13 @@ const defaultIntegrations = {
     enabled: false,
     url: '', // e.g. http://translink.192.168.1.114.sslip.io
     apiKey: '',
+    postcode: '', // Optional. If set, Connect resolves this to stop IDs and overrides stopIds
     stopIds: '', // Comma-separated stop IDs. Empty = use service defaults (Saintfield + Queen's Park)
     lineFilter: '', // Comma-separated route numbers to keep. Empty = no line filter
     destinationFilter: '', // Substring match against destination (case-insensitive). Empty = no filter
-    maxPerStop: 2 // How many departures to render per stop (after filtering)
+    panelLimit: 5, // Departures shown per stop on the main panel (after filtering)
+    standbyLimit: 2, // Departures shown per stop on the lock/standby screen
+    pollIntervalMinutes: 5 // How often the dashboard polls the wrapper. Lower = fresher, higher = less quota.
   },
   subscriptions: [],
   favoriteSeries: []

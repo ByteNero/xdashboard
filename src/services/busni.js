@@ -6,9 +6,13 @@ export const STOP_LABELS = {
   '10010881': 'Saintfield',
   '10010863': "Queen's Park"
 };
-// Upstream fetch size — wider than maxPerStop so destination/line filters
-// still have something left after trimming.
+
 const UPSTREAM_LIMIT = 10;
+const DEFAULT_POLL_MINUTES = 5;
+const MIN_POLL_MINUTES = 1;
+const MAX_POLL_MINUTES = 60;
+const TIMETABLE_TTL_MS = 20 * 60 * 60 * 1000; // 20h — comfortably inside the wrapper's 24h cache
+const TICK_MS = 60 * 1000;
 
 const parseCsv = (raw) =>
   (raw || '').split(',').map(s => s.trim()).filter(Boolean);
@@ -18,12 +22,20 @@ class BusNIService {
     this.baseUrl = null;
     this.apiKey = null;
     this.stopIds = [...DEFAULT_STOPS];
+    this.resolvedStopLabels = {};
     this.lineFilter = [];
     this.destinationFilter = '';
-    this.maxPerStop = 2;
+    this.panelLimit = 5;
+    this.standbyLimit = 2;
+    this.pollIntervalMs = DEFAULT_POLL_MINUTES * 60 * 1000;
+    this.postcode = '';
     this.connected = false;
     this.data = null;
     this.subscribers = new Set();
+    this.timetableByStop = {}; // id -> { data, cache, fetchedAt, error }
+    this.alertsResult = null;
+    this.healthData = null;
+    this.tickInterval = null;
     this.pollInterval = null;
     this._visibilityHandler = null;
     this._reconnecting = false;
@@ -39,39 +51,57 @@ class BusNIService {
 
     this.baseUrl = url;
     this.apiKey = config.apiKey || '';
-
-    const configuredStops = parseCsv(config.stopIds);
-    this.stopIds = configuredStops.length ? configuredStops : [...DEFAULT_STOPS];
+    this.postcode = (config.postcode || '').trim();
     this.lineFilter = parseCsv(config.lineFilter);
-    this.destinationFilter = (config.destinationFilter || '').trim().toLowerCase();
-    const parsedMax = parseInt(config.maxPerStop, 10);
-    this.maxPerStop = Number.isFinite(parsedMax) && parsedMax > 0
-      ? Math.min(parsedMax, UPSTREAM_LIMIT)
+    this.destinationFilter = (config.destinationFilter || '').trim();
+
+    const parsedPanel = parseInt(config.panelLimit, 10);
+    this.panelLimit = Number.isFinite(parsedPanel) && parsedPanel > 0
+      ? Math.min(parsedPanel, UPSTREAM_LIMIT)
+      : 5;
+
+    const parsedStandby = parseInt(config.standbyLimit, 10);
+    this.standbyLimit = Number.isFinite(parsedStandby) && parsedStandby > 0
+      ? Math.min(parsedStandby, UPSTREAM_LIMIT)
       : 2;
 
+    const parsedPoll = parseInt(config.pollIntervalMinutes, 10);
+    const pollMins = Number.isFinite(parsedPoll) && parsedPoll > 0
+      ? Math.min(Math.max(parsedPoll, MIN_POLL_MINUTES), MAX_POLL_MINUTES)
+      : DEFAULT_POLL_MINUTES;
+    this.pollIntervalMs = pollMins * 60 * 1000;
+
+    this.resolvedStopLabels = { ...STOP_LABELS };
+    this.timetableByStop = {};
+    this.alertsResult = null;
+    this.healthData = null;
+
     try {
-      await this._fetch(`${this.baseUrl}/health`, false);
-      await this.fetchAll();
+      await this.fetchHealth();
+
+      // Resolve stops: postcode wins if set, else use stopIds, else defaults.
+      if (this.postcode) {
+        const resolved = await this._resolveStopsFromPostcode(this.postcode);
+        if (!resolved.length) {
+          throw new Error(`No stops found for postcode ${this.postcode}`);
+        }
+        this.stopIds = resolved.map(s => s.id);
+        resolved.forEach(s => { this.resolvedStopLabels[s.id] = s.name || s.id; });
+      } else {
+        const configuredStops = parseCsv(config.stopIds);
+        this.stopIds = configuredStops.length ? configuredStops : [...DEFAULT_STOPS];
+      }
+
+      await this.fetchTimetables();
+      await this.fetchAlerts();
       this.connected = true;
-      this.notifySubscribers();
+      this._emit();
       this.startPolling();
       return { success: true };
     } catch (error) {
       this.connected = false;
       throw new Error(error.message || 'Could not reach Translink wrapper');
     }
-  }
-
-  _filterDepartures(deps) {
-    let out = Array.isArray(deps) ? deps : [];
-    if (this.lineFilter.length) {
-      const set = new Set(this.lineFilter.map(l => l.toLowerCase()));
-      out = out.filter(d => set.has(String(d.route || d.line || '').toLowerCase()));
-    }
-    if (this.destinationFilter) {
-      out = out.filter(d => String(d.destination || '').toLowerCase().includes(this.destinationFilter));
-    }
-    return out.slice(0, this.maxPerStop);
   }
 
   async _fetch(url, withKey = true) {
@@ -98,6 +128,53 @@ class BusNIService {
     }
   }
 
+  async _resolveStopsFromPostcode(postcode) {
+    const params = new URLSearchParams();
+    params.set('postcode', postcode);
+    const url = `${this.baseUrl}/stops/by-postcode?${params.toString()}`;
+    const res = await this._fetch(url);
+    const raw = Array.isArray(res?.data) ? res.data : [];
+    return raw
+      .map(s => ({ id: String(s.id || s.stop_id || ''), name: s.name || s.stop_name || '' }))
+      .filter(s => s.id);
+  }
+
+  async fetchHealth() {
+    try {
+      const res = await this._fetch(`${this.baseUrl}/health`, false);
+      this.healthData = res || null;
+    } catch (e) {
+      this.healthData = null;
+    }
+  }
+
+  async fetchTimetable(stopId) {
+    const params = new URLSearchParams();
+    params.set('mode', 'bus');
+    if (this.lineFilter.length) params.set('lines', this.lineFilter.join(','));
+    if (this.destinationFilter) params.set('destination', this.destinationFilter);
+    const url = `${this.baseUrl}/timetable/${encodeURIComponent(stopId)}?${params.toString()}`;
+    try {
+      const res = await this._fetch(url);
+      const rows = Array.isArray(res?.data) ? res.data : [];
+      return { data: rows, cache: res?.cache || null, fetchedAt: Date.now(), error: null };
+    } catch (err) {
+      return { data: [], cache: null, fetchedAt: Date.now(), error: err.message };
+    }
+  }
+
+  async fetchTimetables(force = false) {
+    const now = Date.now();
+    const entries = await Promise.all(this.stopIds.map(async id => {
+      const existing = this.timetableByStop[id];
+      const fresh = existing && !existing.error && (now - existing.fetchedAt) < TIMETABLE_TTL_MS;
+      if (!force && fresh) return [id, existing];
+      const next = await this.fetchTimetable(id);
+      return [id, next];
+    }));
+    this.timetableByStop = Object.fromEntries(entries);
+  }
+
   async fetchAlerts() {
     const params = new URLSearchParams();
     params.set('stop_ids', this.stopIds.join(','));
@@ -108,65 +185,88 @@ class BusNIService {
     const url = `${this.baseUrl}/alerts?${params.toString()}`;
     try {
       const res = await this._fetch(url);
-      return { data: res.data || null, cache: res.cache || null, error: null };
+      this.alertsResult = { data: res?.data || null, cache: res?.cache || null, error: null };
     } catch (err) {
-      return { data: null, cache: null, error: err.message };
+      this.alertsResult = { data: null, cache: null, error: err.message };
     }
   }
 
-  async fetchDepartures(stopId) {
-    const params = new URLSearchParams();
-    params.set('limit', String(UPSTREAM_LIMIT));
-    params.set('mode', 'bus');
-    params.set('exclude_cancelled', 'false');
-    const url = `${this.baseUrl}/departures/${encodeURIComponent(stopId)}?${params.toString()}`;
-    try {
-      const res = await this._fetch(url);
-      const raw = Array.isArray(res.data) ? res.data : [];
-      return {
-        data: this._filterDepartures(raw),
-        cache: res.cache || null,
-        error: null
-      };
-    } catch (err) {
-      return { data: [], cache: null, error: err.message };
-    }
+  _upcomingForStop(stopId) {
+    const entry = this.timetableByStop[stopId];
+    if (!entry) return { data: [], cache: null, error: 'no data' };
+    if (entry.error && !entry.data?.length) return { data: [], cache: entry.cache, error: entry.error };
+
+    const now = Date.now();
+    const ceiling = Math.max(this.panelLimit, this.standbyLimit);
+    // Include buses whose scheduled time is in the last 60s (the "Due" state) so
+    // the panel doesn't go empty the moment a bus departs.
+    const cutoff = now - 60 * 1000;
+
+    const enriched = (entry.data || [])
+      .filter(d => {
+        const t = Date.parse(d.scheduled_at);
+        return !isNaN(t) && t >= cutoff;
+      })
+      .map(d => {
+        const t = Date.parse(d.scheduled_at);
+        const mins = Math.max(0, Math.round((t - now) / 60000));
+        return {
+          ...d,
+          minutes_until: mins,
+          is_realtime_tracked: false,
+          cancelled: d.cancelled || false,
+          stale: d.stale || entry.cache?.status === 'STALE'
+        };
+      })
+      .slice(0, ceiling);
+
+    return { data: enriched, cache: entry.cache, error: null };
   }
 
-  async fetchAll() {
-    if (!this.baseUrl) return;
-
-    const alertsPromise = this.fetchAlerts();
-    const stopPromises = this.stopIds.map(stopId =>
-      this.fetchDepartures(stopId).then(r => ({ stopId, ...r }))
-    );
-
-    const [alerts, ...departures] = await Promise.all([alertsPromise, ...stopPromises]);
-
+  _emit() {
     const stops = {};
-    departures.forEach(d => {
-      stops[d.stopId] = { data: d.data, cache: d.cache, error: d.error };
-    });
+    this.stopIds.forEach(id => { stops[id] = this._upcomingForStop(id); });
 
     this.data = {
-      alerts,
+      alerts: this.alertsResult,
       stops,
-      stopLabels: STOP_LABELS,
+      stopLabels: this.resolvedStopLabels,
       watchedStops: [...this.stopIds],
       watchedLines: this.lineFilter.length ? [...this.lineFilter] : [...DEFAULT_LINES],
       destinationFilter: this.destinationFilter,
-      maxPerStop: this.maxPerStop,
+      panelLimit: this.panelLimit,
+      standbyLimit: this.standbyLimit,
+      postcode: this.postcode,
+      quotaStatus: this.healthData?.quota_status || 'unknown',
+      quotaUsed: this.healthData?.quota_used,
+      quotaLimit: this.healthData?.quota_limit,
       attribution: TRANSLINK_ATTRIBUTION,
       updatedAt: Date.now()
     };
     this.notifySubscribers();
   }
 
+  async refresh() {
+    // Full wrapper hit: alerts + health + timetable-if-stale.
+    // Called from the refresh icon, on visibility change, and on the poll timer.
+    await Promise.all([
+      this.fetchAlerts(),
+      this.fetchHealth(),
+      this.fetchTimetables(false)
+    ]);
+    this._emit();
+  }
+
+  async fetchAll() {
+    // Kept for compatibility with any external caller. Same as refresh().
+    return this.refresh();
+  }
+
   async attemptReconnect() {
     if (this._reconnecting || !this.baseUrl) return;
     this._reconnecting = true;
     try {
-      await this._fetch(`${this.baseUrl}/health`, false);
+      await this.fetchHealth();
       this.connected = true;
     } catch (e) {
     } finally {
@@ -174,16 +274,28 @@ class BusNIService {
     }
   }
 
-  startPolling(interval = 120000) {
+  startPolling(interval) {
     this.stopPolling();
-    this.pollInterval = setInterval(() => this.fetchAll(), interval);
+
+    // Local tick: re-compute minutes_until from the cached timetable every 60s,
+    // no network. This is what makes the panel feel "live" without any quota cost.
+    this.tickInterval = setInterval(() => this._emit(), TICK_MS);
+
+    // Network poll: alerts + health (+ timetable if stale).
+    const ms = interval || this.pollIntervalMs;
+    this.pollInterval = setInterval(() => this.refresh(), ms);
+
     this._visibilityHandler = () => {
-      if (document.visibilityState === 'visible') this.fetchAll();
+      if (document.visibilityState === 'visible') this.refresh();
     };
     document.addEventListener('visibilitychange', this._visibilityHandler);
   }
 
   stopPolling() {
+    if (this.tickInterval) {
+      clearInterval(this.tickInterval);
+      this.tickInterval = null;
+    }
     if (this.pollInterval) {
       clearInterval(this.pollInterval);
       this.pollInterval = null;
@@ -212,6 +324,9 @@ class BusNIService {
     this.stopPolling();
     this.connected = false;
     this.data = null;
+    this.timetableByStop = {};
+    this.alertsResult = null;
+    this.healthData = null;
     this.subscribers.clear();
   }
 

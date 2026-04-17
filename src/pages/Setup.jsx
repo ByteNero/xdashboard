@@ -3363,10 +3363,15 @@ export default function Setup() {
                 placeholder="••••••••••••" secret
                 helpText="Sent as X-API-Key header on every request (from the wrapper's API_KEYS env var)" />
 
+              <FormInput label="Postcode" value={integrations.busni?.postcode || ''}
+                onChange={(postcode) => updateIntegration('busni', { ...integrations.busni, postcode })}
+                placeholder="BT24 7WG"
+                helpText="If set, this postcode is resolved to nearby stops (wrapper caches 30 days). Overrides Stop IDs below." />
+
               <FormInput label="Stop IDs" value={integrations.busni?.stopIds || ''}
                 onChange={(stopIds) => updateIntegration('busni', { ...integrations.busni, stopIds })}
                 placeholder="10010881, 10010863"
-                helpText="Comma-separated Translink stop IDs. Leave blank to use Saintfield + Queen's Park defaults." />
+                helpText="Comma-separated Translink stop IDs. Ignored if a postcode is set above. Blank + no postcode = Saintfield + Queen's Park defaults." />
 
               <FormInput label="Destination filter" value={integrations.busni?.destinationFilter || ''}
                 onChange={(destinationFilter) => updateIntegration('busni', { ...integrations.busni, destinationFilter })}
@@ -3375,16 +3380,28 @@ export default function Setup() {
 
               <FormInput label="Route filter" value={integrations.busni?.lineFilter || ''}
                 onChange={(lineFilter) => updateIntegration('busni', { ...integrations.busni, lineFilter })}
-                placeholder="516, 515"
+                placeholder="215, 515"
                 helpText="Comma-separated route numbers to keep. Blank = show all routes." />
 
-              <FormInput label="Buses per stop" value={String(integrations.busni?.maxPerStop ?? 2)}
-                onChange={(v) => updateIntegration('busni', { ...integrations.busni, maxPerStop: parseInt(v, 10) || 2 })}
-                placeholder="2"
-                helpText="How many departures to show per stop after filtering (1-10)." />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <FormInput label="Buses on panel" value={String(integrations.busni?.panelLimit ?? 5)}
+                  onChange={(v) => updateIntegration('busni', { ...integrations.busni, panelLimit: parseInt(v, 10) || 5 })}
+                  placeholder="5"
+                  helpText="Per stop, after filtering (1-10)." />
+
+                <FormInput label="Buses on lock screen" value={String(integrations.busni?.standbyLimit ?? 2)}
+                  onChange={(v) => updateIntegration('busni', { ...integrations.busni, standbyLimit: parseInt(v, 10) || 2 })}
+                  placeholder="2"
+                  helpText="Per stop, on standby (1-10)." />
+              </div>
+
+              <FormInput label="Poll interval (minutes)" value={String(integrations.busni?.pollIntervalMinutes ?? 5)}
+                onChange={(v) => updateIntegration('busni', { ...integrations.busni, pollIntervalMinutes: parseInt(v, 10) || 5 })}
+                placeholder="5"
+                helpText="Only drives alerts + health checks — the timetable itself is fetched once per day and served from wrapper cache, so total Translink upstream cost is ~2-3 calls/day regardless of this value. Lower = alerts feel fresher; higher = even less noise." />
 
               <div style={{ marginTop: '12px', fontSize: '11px', color: 'var(--text-muted)' }}>
-                After changing filters, click Disconnect then Connect to apply them.
+                Changes take effect the next time you click <strong>Test Connection</strong> — that re-applies the config, resolves the postcode, and restarts polling.
               </div>
             </IntegrationCard>
 
