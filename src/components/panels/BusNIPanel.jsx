@@ -28,6 +28,19 @@ function formatTime(iso) {
   }
 }
 
+function formatLine(l) {
+  if (!l) return '';
+  if (typeof l === 'string') return l;
+  return l.number || l.name || l.id || '';
+}
+
+function formatStop(s) {
+  if (!s) return '';
+  if (typeof s === 'string') return s;
+  if (s.name && s.locality) return `${s.name} (${s.locality})`;
+  return s.name || s.id || '';
+}
+
 export default function BusNIPanel() {
   const [data, setData] = useState(null);
   const [dismissedAlertKey, setDismissedAlertKey] = useState(null);
@@ -101,16 +114,25 @@ export default function BusNIPanel() {
               cursor: 'pointer'
             }}
           >
-            {alerts.items.map((item, i) => (
-              <div key={item.id || i} style={{ marginBottom: i < alerts.items.length - 1 ? '8px' : 0 }}>
-                <div style={{ fontSize: '13px', fontWeight: '700' }}>{item.title}</div>
-                {item.affected_lines?.length > 0 && (
-                  <div style={{ fontSize: '11px', opacity: 0.85, marginTop: '2px' }}>
-                    Routes: {item.affected_lines.join(', ')}
-                  </div>
-                )}
-              </div>
-            ))}
+            {alerts.items.map((item, i) => {
+              const lineLabels = (item.affected_lines || []).map(formatLine).filter(Boolean);
+              const stopLabels = (item.affected_stops || []).map(formatStop).filter(Boolean);
+              return (
+                <div key={item.id || i} style={{ marginBottom: i < alerts.items.length - 1 ? '8px' : 0 }}>
+                  <div style={{ fontSize: '13px', fontWeight: '700' }}>{item.title}</div>
+                  {lineLabels.length > 0 && (
+                    <div style={{ fontSize: '11px', opacity: 0.85, marginTop: '2px' }}>
+                      Routes: {lineLabels.join(', ')}
+                    </div>
+                  )}
+                  {stopLabels.length > 0 && (
+                    <div style={{ fontSize: '11px', opacity: 0.85, marginTop: '2px' }}>
+                      Stops: {stopLabels.join(', ')}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
 
