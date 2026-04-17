@@ -6,4 +6,5 @@ export { unifi } from './unifi';
 export { pihole } from './pihole';
 export { proxmox } from './proxmox';
 export { sonarr } from './sonarr';
+export { busni } from './busni';
 export { proxyFetch, getProxiedUrl } from './proxy';

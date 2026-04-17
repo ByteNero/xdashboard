@@ -6,7 +6,7 @@ import {
   Eye, EyeOff, Info, Plus, Trash2, Search, Calendar, Camera, StickyNote, Cpu,
   Lightbulb, Bed, ChefHat, Lock, Thermometer, Tv, DoorOpen, Fan, Power, Film, Book, Bell,
   Download, Upload, Link as LinkIcon, Box, Rss, Image, Star, TrendingUp, Timer, Wifi,
-  Shield, Server, CreditCard
+  Shield, Server, CreditCard, Bus
 } from 'lucide-react';
 import { useDashboardStore } from '../store/dashboardStore';
 import { homeAssistant } from '../services';
@@ -175,7 +175,9 @@ const panelIcons = {
   'unifi': Wifi,
   'pihole': Shield,
   'proxmox': Server,
-  'sonarr-calendar': Tv
+  'sonarr-calendar': Tv,
+  'busni': Bus,
+  'subscriptions': CreditCard
 };
 
 const availableIcons = [
@@ -2207,8 +2209,8 @@ export default function Setup() {
     _hasHydrated,
     panels, togglePanel, reorderPanels, updatePanelConfig,
     integrations, updateIntegration, connectionStatus,
-    connectHomeAssistant, connectUptimeKuma, connectWeather, connectTautulli, connectUnifi, connectPihole, connectProxmox,
-    disconnectHomeAssistant, disconnectUptimeKuma, disconnectWeather, disconnectTautulli, disconnectUnifi, disconnectPihole, disconnectProxmox,
+    connectHomeAssistant, connectUptimeKuma, connectWeather, connectTautulli, connectUnifi, connectPihole, connectProxmox, connectBusNI,
+    disconnectHomeAssistant, disconnectUptimeKuma, disconnectWeather, disconnectTautulli, disconnectUnifi, disconnectPihole, disconnectProxmox, disconnectBusNI,
     testTmdbConnection, testTraktConnection, resetPosterConnection,
     settings, updateSettings, resetToDefaults
   } = useDashboardStore();
@@ -2244,6 +2246,9 @@ export default function Setup() {
       }
       if (integrations.proxmox?.enabled && integrations.proxmox?.url && integrations.proxmox?.tokenId) {
         connectProxmox();
+      }
+      if (integrations.busni?.enabled && integrations.busni?.url && integrations.busni?.apiKey) {
+        connectBusNI();
       }
       // Auto-test Poster Discovery APIs
       if (integrations.poster?.tmdbApiKey) {
@@ -3337,6 +3342,26 @@ export default function Setup() {
                 onChange={(tokenSecret) => updateIntegration('proxmox', { ...integrations.proxmox, tokenSecret })}
                 placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" secret
                 helpText="Token needs PVEAuditor role (read-only) on '/' path" />
+            </IntegrationCard>
+
+            {/* BUS NI (Translink wrapper) */}
+            <IntegrationCard title="BUS NI" icon={Bus} enabled={integrations.busni?.enabled}
+              onToggle={() => updateIntegration('busni', { ...integrations.busni, enabled: !integrations.busni?.enabled })}
+              status={connectionStatus.busni} onConnect={connectBusNI} onDisconnect={disconnectBusNI} language={language}>
+
+              <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '12px', marginBottom: '16px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                Northern Ireland bus departures + disruptions via the Translink opendata wrapper. Watched stops and routes are configured in <code>src/services/busni.js</code>. Transport Information supplied by Translink Opendata API.
+              </div>
+
+              <FormInput label="Wrapper URL" value={integrations.busni?.url || ''}
+                onChange={(url) => updateIntegration('busni', { ...integrations.busni, url })}
+                placeholder="http://translink.192.168.1.114.sslip.io"
+                helpText="Base URL of your Translink FastAPI wrapper (no trailing slash)" />
+
+              <FormInput label="API Key" value={integrations.busni?.apiKey || ''}
+                onChange={(apiKey) => updateIntegration('busni', { ...integrations.busni, apiKey })}
+                placeholder="••••••••••••" secret
+                helpText="Sent as X-API-Key header on every request (from the wrapper's API_KEYS env var)" />
             </IntegrationCard>
 
           </div>

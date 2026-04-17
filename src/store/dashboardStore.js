@@ -5,6 +5,7 @@ import { unifi } from '../services/unifi';
 import { pihole } from '../services/pihole';
 import { proxmox } from '../services/proxmox';
 import { sonarr } from '../services/sonarr';
+import { busni } from '../services/busni';
 
 // Increment this when making breaking changes to force cache reset
 const STORE_VERSION = 10;
@@ -194,6 +195,14 @@ const defaultPanels = [
     enabled: false,
     order: 20,
     config: {}
+  },
+  {
+    id: 'busni',
+    type: 'busni',
+    title: 'BUS NI',
+    enabled: false,
+    order: 21,
+    config: {}
   }
 ];
 
@@ -320,6 +329,11 @@ const defaultIntegrations = {
     tokenId: '', // e.g. user@pam!tokenname
     tokenSecret: ''
   },
+  busni: {
+    enabled: false,
+    url: '', // e.g. http://translink.192.168.1.114.sslip.io
+    apiKey: ''
+  },
   subscriptions: [],
   favoriteSeries: []
 };
@@ -362,7 +376,8 @@ export const useDashboardStore = create(
         unifi: { connected: false, error: null },
         pihole: { connected: false, error: null },
         proxmox: { connected: false, error: null },
-        sonarrCalendar: { connected: false, error: null }
+        sonarrCalendar: { connected: false, error: null },
+        busni: { connected: false, error: null }
       },
       
       // Panel management
@@ -731,6 +746,35 @@ export const useDashboardStore = create(
         get().setConnectionStatus('proxmox', { connected: false, error: null });
       },
 
+      connectBusNI: async () => {
+        const { integrations, setConnectionStatus } = get();
+        const config = integrations.busni;
+
+        if (!config?.url) {
+          setConnectionStatus('busni', { connected: false, error: 'Wrapper URL is required' });
+          return false;
+        }
+        if (!config?.apiKey) {
+          setConnectionStatus('busni', { connected: false, error: 'API key is required' });
+          return false;
+        }
+
+        try {
+          setConnectionStatus('busni', { connected: false, error: null, connecting: true });
+          await busni.connect(config);
+          setConnectionStatus('busni', { connected: true, connecting: false, error: null });
+          return true;
+        } catch (error) {
+          setConnectionStatus('busni', { connected: false, connecting: false, error: error.message });
+          return false;
+        }
+      },
+
+      disconnectBusNI: () => {
+        busni.disconnect();
+        get().setConnectionStatus('busni', { connected: false, error: null });
+      },
+
       connectSonarrCalendar: async () => {
         const { integrations, setConnectionStatus } = get();
         const config = integrations.arr?.sonarr;
@@ -858,7 +902,7 @@ export const useDashboardStore = create(
 
       // Connect all enabled integrations
       connectAllEnabled: async () => {
-        const { integrations, connectHomeAssistant, connectUptimeKuma, connectWeather, connectTautulli, connectUnifi, connectPihole, connectProxmox, connectSonarrCalendar } = get();
+        const { integrations, connectHomeAssistant, connectUptimeKuma, connectWeather, connectTautulli, connectUnifi, connectPihole, connectProxmox, connectSonarrCalendar, connectBusNI } = get();
 
         const promises = [];
 
@@ -894,6 +938,10 @@ export const useDashboardStore = create(
 
         if (integrations.arr?.sonarr?.enabled && integrations.arr?.sonarr?.url && integrations.arr?.sonarr?.apiKey) {
           promises.push(connectSonarrCalendar());
+        }
+
+        if (integrations.busni?.enabled && integrations.busni?.url && integrations.busni?.apiKey) {
+          promises.push(connectBusNI());
         }
 
         if (promises.length > 0) {
