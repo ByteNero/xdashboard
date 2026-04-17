@@ -70,7 +70,18 @@ export default function Display() {
       clocks: (ints.clocks || []).map(c => ({ id: c.id, enabled: c.enabled, city: c.city })),
       tautulli: { enabled: ints.tautulli?.enabled, url: ints.tautulli?.url },
       unifi: { enabled: ints.unifi?.enabled, url: ints.unifi?.url },
-      sonarr: { enabled: ints.arr?.sonarr?.enabled, url: ints.arr?.sonarr?.url }
+      sonarr: { enabled: ints.arr?.sonarr?.enabled, url: ints.arr?.sonarr?.url },
+      busni: {
+        enabled: ints.busni?.enabled,
+        url: ints.busni?.url,
+        apiKey: ints.busni?.apiKey,
+        postcode: ints.busni?.postcode,
+        stopIds: ints.busni?.stopIds,
+        lineFilter: ints.busni?.lineFilter,
+        destinationFilter: ints.busni?.destinationFilter,
+        panelLimit: ints.busni?.panelLimit,
+        pollIntervalMinutes: ints.busni?.pollIntervalMinutes
+      }
     });
   };
 
