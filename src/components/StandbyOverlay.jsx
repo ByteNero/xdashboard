@@ -732,7 +732,7 @@ export default function StandbyOverlay() {
                       const minsLabel = d.cancelled
                         ? 'CXL'
                         : nextDay
-                          ? when.toLocaleDateString(undefined, { weekday: 'short' }) + ' ' + when.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+                          ? when.toLocaleDateString(undefined, { weekday: 'short' }) + ' ' + when.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false })
                           : (mins == null ? '—' : mins <= 0 ? 'Due' : mins < 60 ? `${mins}m` : `${Math.floor(mins / 60)}h ${mins % 60}m`);
                       return (
                         <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '2px 0', minWidth: 0, opacity: d.cancelled ? 0.5 : 1, textDecoration: d.cancelled ? 'line-through' : 'none' }}>

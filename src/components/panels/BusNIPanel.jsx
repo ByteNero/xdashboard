@@ -24,7 +24,7 @@ function formatTime(iso) {
   try {
     const d = new Date(iso);
     const now = new Date();
-    const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
     if (d.toDateString() === now.toDateString()) return time;
     // Different day — prefix with short weekday so tomorrow's buses are visually distinct
     const weekday = d.toLocaleDateString(undefined, { weekday: 'short' });
