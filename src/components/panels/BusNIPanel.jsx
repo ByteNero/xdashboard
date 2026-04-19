@@ -170,6 +170,14 @@ export default function BusNIPanel() {
           const limit = data.panelLimit || 5;
           const deps = (stop?.data || []).slice(0, limit);
           const cache = stop?.cache;
+          // Did any of today's buses survive the cutoff, or are we entirely filling from tomorrow?
+          const todayStr = new Date().toDateString();
+          const firstDepIsToday = deps[0]?.scheduled_at
+            ? new Date(deps[0].scheduled_at).toDateString() === todayStr
+            : false;
+          const fallbackNote = deps.length > 0 && !firstDepIsToday
+            ? `No more buses today — showing ${new Date(deps[0].scheduled_at).toLocaleDateString(undefined, { weekday: 'long' })}`
+            : null;
 
           return (
             <div key={stopId} style={{ marginBottom: '14px' }}>
@@ -197,6 +205,20 @@ export default function BusNIPanel() {
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  {fallbackNote && (
+                    <div style={{
+                      fontSize: '11px',
+                      color: 'var(--warning)',
+                      fontStyle: 'italic',
+                      padding: '4px 8px',
+                      marginBottom: '2px',
+                      background: 'var(--bg-card)',
+                      borderLeft: '2px solid var(--warning)',
+                      borderRadius: '3px'
+                    }}>
+                      {fallbackNote}
+                    </div>
+                  )}
                   {deps.map((d, i) => {
                     const cancelled = d.cancelled === true;
                     const stale = d.stale === true;

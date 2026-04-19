@@ -613,63 +613,8 @@ export default function StandbyOverlay() {
     }
   }
 
-  if (standbyOverlays.busni && busniData) {
-    const stopsList = (busniData.watchedStops || []).map(id => ({
-      id,
-      label: busniData.stopLabels?.[id] || id,
-      deps: (busniData.stops?.[id]?.data || []).slice(0, 2)
-    }));
-    const anyDeps = stopsList.some(s => s.deps.length > 0);
-    if (anyDeps) {
-      cards.push(
-        <div key="busni" className="standby-card">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-            <Bus size={12} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
-            <span style={{ fontSize: '11px', color: 'var(--accent-primary)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px' }}>Next Bus</span>
-            {busniData.destinationFilter && (
-              <span style={{ marginLeft: 'auto', fontSize: '10px', color: 'rgba(255,255,255,0.3)', textTransform: 'capitalize' }}>
-                → {busniData.destinationFilter}
-              </span>
-            )}
-          </div>
-          {stopsList.map(stop => (
-            <div key={stop.id} style={{ marginBottom: '4px' }}>
-              {stopsList.length > 1 && (
-                <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', marginBottom: '2px' }}>{stop.label}</div>
-              )}
-              {stop.deps.length === 0 ? (
-                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', padding: '2px 0' }}>No buses</div>
-              ) : stop.deps.map((d, i) => {
-                const mins = d.minutes_until;
-                const when = d.scheduled_at ? new Date(d.scheduled_at) : null;
-                const nextDay = when && when.toDateString() !== new Date().toDateString();
-                const minsLabel = d.cancelled
-                  ? 'CXL'
-                  : nextDay
-                    ? when.toLocaleDateString(undefined, { weekday: 'short' }) + ' ' + when.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
-                    : (mins == null ? '—' : mins <= 0 ? 'Due' : mins < 60 ? `${mins}m` : `${Math.floor(mins / 60)}h ${mins % 60}m`);
-                return (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '2px 0', minWidth: 0, opacity: d.cancelled ? 0.5 : 1, textDecoration: d.cancelled ? 'line-through' : 'none' }}>
-                    <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--accent-primary)', minWidth: '28px' }}>{d.route || d.line || '—'}</span>
-                    <span className="standby-truncate" style={{ flex: 1, fontSize: '11px', color: 'rgba(255,255,255,0.7)' }}>{d.destination || ''}</span>
-                    <span style={{ fontSize: '11px', fontWeight: '600', color: d.cancelled ? '#ef4444' : 'rgba(255,255,255,0.85)', fontFamily: 'var(--font-mono, monospace)', flexShrink: 0 }}>{minsLabel}</span>
-                  </div>
-                );
-              })}
-            </div>
-          ))}
-        </div>
-      );
-    } else if (busni.isConnected()) {
-      cards.push(
-        <div key="busni-idle" className="standby-card">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', opacity: 0.4 }}>
-            <Bus size={12} /><span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>No upcoming buses</span>
-          </div>
-        </div>
-      );
-    }
-  }
+  // BUS NI is rendered in the top-right column under the calendar, not here.
+  // See the fixed-position block below.
 
   // ── Slice cards to fit viewport ──
   const visibleCards = cards.slice(0, maxCards);
@@ -716,8 +661,8 @@ export default function StandbyOverlay() {
         {visibleCards}
       </div>
 
-      {/* ── Top-right column: Calendar + Subscriptions ── */}
-      {((standbyOverlays.calendar && calendarEvents.length > 0) || upcomingSubs.length > 0) && (
+      {/* ── Top-right column: Calendar + BUS NI + Subscriptions ── */}
+      {((standbyOverlays.calendar && calendarEvents.length > 0) || (standbyOverlays.busni && busniData) || upcomingSubs.length > 0) && (
         <div style={{
           position: 'absolute', top: '32px', right: '32px', zIndex: 2,
           width: '320px', display: 'flex', flexDirection: 'column', gap: '8px'
@@ -750,6 +695,58 @@ export default function StandbyOverlay() {
               })}
             </div>
           )}
+
+          {/* BUS NI — next 2 buses per stop */}
+          {standbyOverlays.busni && busniData && (() => {
+            const stopsList = (busniData.watchedStops || []).map(id => ({
+              id,
+              label: busniData.stopLabels?.[id] || id,
+              deps: (busniData.stops?.[id]?.data || []).slice(0, 2)
+            }));
+            const anyDeps = stopsList.some(s => s.deps.length > 0);
+            if (!anyDeps && !busni.isConnected()) return null;
+            return (
+              <div className="standby-card">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                  <Bus size={12} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
+                  <span style={{ fontSize: '11px', color: 'var(--accent-primary)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '1px' }}>Next Bus</span>
+                  {busniData.destinationFilter && (
+                    <span style={{ marginLeft: 'auto', fontSize: '10px', color: 'rgba(255,255,255,0.3)', textTransform: 'capitalize' }}>
+                      → {busniData.destinationFilter}
+                    </span>
+                  )}
+                </div>
+                {!anyDeps ? (
+                  <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', padding: '2px 0' }}>No upcoming buses</div>
+                ) : stopsList.map(stop => (
+                  <div key={stop.id} style={{ marginBottom: '4px' }}>
+                    {stopsList.length > 1 && (
+                      <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.4)', marginBottom: '2px' }}>{stop.label}</div>
+                    )}
+                    {stop.deps.length === 0 ? (
+                      <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', padding: '2px 0' }}>No buses</div>
+                    ) : stop.deps.map((d, i) => {
+                      const mins = d.minutes_until;
+                      const when = d.scheduled_at ? new Date(d.scheduled_at) : null;
+                      const nextDay = when && when.toDateString() !== new Date().toDateString();
+                      const minsLabel = d.cancelled
+                        ? 'CXL'
+                        : nextDay
+                          ? when.toLocaleDateString(undefined, { weekday: 'short' }) + ' ' + when.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+                          : (mins == null ? '—' : mins <= 0 ? 'Due' : mins < 60 ? `${mins}m` : `${Math.floor(mins / 60)}h ${mins % 60}m`);
+                      return (
+                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '2px 0', minWidth: 0, opacity: d.cancelled ? 0.5 : 1, textDecoration: d.cancelled ? 'line-through' : 'none' }}>
+                          <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--accent-primary)', minWidth: '28px' }}>{d.route || d.line || '—'}</span>
+                          <span className="standby-truncate" style={{ flex: 1, fontSize: '11px', color: 'rgba(255,255,255,0.7)' }}>{d.destination || ''}</span>
+                          <span style={{ fontSize: '11px', fontWeight: '600', color: d.cancelled ? '#ef4444' : 'rgba(255,255,255,0.85)', fontFamily: 'var(--font-mono, monospace)', flexShrink: 0 }}>{minsLabel}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
 
           {/* Upcoming subscriptions */}
           {upcomingSubs.length > 0 && (
