@@ -145,9 +145,9 @@ class BusNIService {
     }
   }
 
-  _tomorrowDateString() {
+  _localDateString(offsetDays = 0) {
     const d = new Date();
-    d.setDate(d.getDate() + 1);
+    if (offsetDays) d.setDate(d.getDate() + offsetDays);
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
@@ -164,19 +164,27 @@ class BusNIService {
     try {
       const res = await this._fetch(url);
       const rows = Array.isArray(res?.data) ? res.data : [];
-      return { data: rows, cache: res?.cache || null, fetchedAt: Date.now(), error: null };
+      return { data: rows, cache: res?.cache || null, fetchedAt: Date.now(), date, error: null };
     } catch (err) {
-      return { data: [], cache: null, fetchedAt: Date.now(), error: err.message };
+      return { data: [], cache: null, fetchedAt: Date.now(), date, error: err.message };
     }
   }
 
   async fetchTimetables(force = false) {
     const now = Date.now();
-    const tomorrowDate = this._tomorrowDateString();
+    const todayDate = this._localDateString(0);
+    const tomorrowDate = this._localDateString(1);
 
     const entries = await Promise.all(this.stopIds.map(async id => {
       const existing = this.timetableByStop[id] || {};
-      const todayFresh = existing.today && !existing.today.error
+
+      // Both entries must match the current calendar date AND be within TTL.
+      // Without the date check, a connect at 9am Sunday holds Sunday's "today"
+      // until ~5am Monday, so after midnight we end up showing Tuesday's
+      // morning buses while still holding stale Sunday data as "today".
+      const todayFresh = existing.today
+        && existing.today.date === todayDate
+        && !existing.today.error
         && (now - existing.today.fetchedAt) < TIMETABLE_TTL_MS;
       const tomorrowFresh = existing.tomorrow
         && existing.tomorrow.date === tomorrowDate
@@ -184,8 +192,8 @@ class BusNIService {
         && (now - existing.tomorrow.fetchedAt) < TIMETABLE_TTL_MS;
 
       const [today, tomorrow] = await Promise.all([
-        !force && todayFresh ? existing.today : this.fetchTimetable(id),
-        !force && tomorrowFresh ? existing.tomorrow : this.fetchTimetable(id, tomorrowDate).then(r => ({ ...r, date: tomorrowDate }))
+        !force && todayFresh ? existing.today : this.fetchTimetable(id, todayDate),
+        !force && tomorrowFresh ? existing.tomorrow : this.fetchTimetable(id, tomorrowDate)
       ]);
 
       return [id, { today, tomorrow }];
